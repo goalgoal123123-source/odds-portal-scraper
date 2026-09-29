@@ -51,15 +51,19 @@ function checkFormat(format) {
 async function runScrape(kind, params) {
   const browser = await launchBrowser();
   const results = [];
+  const errors = [];
+  const onResult = async (r) => {
+    if (r.data) results.push(r.data);
+    else errors.push({ link: r.link, error: r.error });
+  };
   try {
     if (kind === 'next') {
-      await nextMatchesScraper(browser, params.league, params.format,
-        async (data) => { results.push(data); }, params.limit);
+      await nextMatchesScraper(browser, params.league, params.format, onResult, params.limit);
     } else {
       await historicScraper(browser, params.league, params.startYear, params.endYear,
-        params.format, async (data) => { results.push(data); }, params.limit);
+        params.format, onResult, params.limit);
     }
-    return results;
+    return { results, errors };
   } finally {
     try { await browser.close(); } catch (e) { logger.warn(`browser close failed: ${e}`); }
   }
@@ -109,8 +113,8 @@ app.get('/api/next-matches', withJob(async (req, res) => {
     return badRequest(res, 'limit must be between 1 and 200');
   }
 
-  const matches = await runScrape('next', { league, format, limit });
-  res.json({ league, format, count: matches.length, matches });
+  const { results: matches, errors } = await runScrape('next', { league, format, limit });
+  res.json({ league, format, count: matches.length, matches, ...(errors.length ? { errors } : {}) });
 }));
 
 app.get('/api/historic', withJob(async (req, res) => {
@@ -132,8 +136,8 @@ app.get('/api/historic', withJob(async (req, res) => {
     return badRequest(res, 'limit must be between 1 and 200 (per season)');
   }
 
-  const matches = await runScrape('historic', { league, format, startYear, endYear, limit });
-  res.json({ league, format, startYear, endYear, count: matches.length, matches });
+  const { results: matches, errors } = await runScrape('historic', { league, format, startYear, endYear, limit });
+  res.json({ league, format, startYear, endYear, count: matches.length, matches, ...(errors.length ? { errors } : {}) });
 }));
 
 app.get('/', (req, res) => {
