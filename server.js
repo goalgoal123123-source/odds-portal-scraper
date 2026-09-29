@@ -10,12 +10,12 @@
  *   GET /api/leagues
  *   GET /api/odds-formats
  *   GET /api/next-matches?league=<league>&format=<eu|uk|us|...>&limit=<n>
- *   GET /api/historic?league=<league>&start=<yyyy>&end=<yyyy>&format=<...>
+ *   GET /api/historic?league=<league>&start=<yyyy>&end=<yyyy>&format=<...>&limit=<n> (per season)
  */
 
 import express from 'express';
 import launchBrowser from './lib/browser.js';
-import { historicScraper, nextMatchesScraper } from './lib/scraperOrchestrators.js';
+import { historicScraper, nextMatchesScraper } from './lib/scraping-v2/index.js';
 import { leaguesUrlsMap, oddsFormatMap } from './lib/constants.js';
 import { getUrlFrom } from './lib/utils/leagues.js';
 import logger from './lib/logger.js';
@@ -57,7 +57,7 @@ async function runScrape(kind, params) {
         async (data) => { results.push(data); }, params.limit);
     } else {
       await historicScraper(browser, params.league, params.startYear, params.endYear,
-        params.format, async (data) => { results.push(data); });
+        params.format, async (data) => { results.push(data); }, params.limit);
     }
     return results;
   } finally {
@@ -118,6 +118,7 @@ app.get('/api/historic', withJob(async (req, res) => {
   const format = req.query.format || DEFAULT_FORMAT;
   const startYear = parseInt(req.query.start, 10);
   const endYear = parseInt(req.query.end, 10);
+  const limit = parseInt(req.query.limit || '20', 10);
 
   const leagueErr = checkLeague(league);
   if (leagueErr) return badRequest(res, leagueErr, { leagues: LEAGUES });
@@ -127,8 +128,11 @@ app.get('/api/historic', withJob(async (req, res) => {
     return badRequest(res, 'missing required query params: start, end (years, e.g. 2023)');
   }
   if (startYear > endYear) return badRequest(res, 'start must be <= end');
+  if (!Number.isFinite(limit) || limit < 1 || limit > 200) {
+    return badRequest(res, 'limit must be between 1 and 200 (per season)');
+  }
 
-  const matches = await runScrape('historic', { league, format, startYear, endYear });
+  const matches = await runScrape('historic', { league, format, startYear, endYear, limit });
   res.json({ league, format, startYear, endYear, count: matches.length, matches });
 }));
 
