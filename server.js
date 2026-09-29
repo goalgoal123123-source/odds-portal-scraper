@@ -182,6 +182,8 @@ app.get('/api/debug-dom', withJob(async (req, res) => {
       const bodyText = document.body.innerText || '';
       const tables = [...document.querySelectorAll('table')].slice(0, 3).map((t) =>
         t.innerText.slice(0, 300).replace(/\n/g, ' | '));
+      const h2hLinks = [...document.querySelectorAll('a[href*="/h2h/"]')]
+        .slice(0, 25).map((a) => a.getAttribute('href'));
       return {
         title: document.title,
         url: location.href,
@@ -197,6 +199,7 @@ app.get('/api/debug-dom', withJob(async (req, res) => {
           'table': q('table'),
         },
         tableSamples: tables,
+        h2hLinkSamples: h2hLinks,
       };
     });
     res.json({ targetUrl, ...info });
