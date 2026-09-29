@@ -17,6 +17,7 @@ import express from 'express';
 import launchBrowser from './lib/browser.js';
 import { historicScraper, nextMatchesScraper } from './lib/scraperOrchestrators.js';
 import { leaguesUrlsMap, oddsFormatMap } from './lib/constants.js';
+import { getUrlFrom } from './lib/utils/leagues.js';
 import logger from './lib/logger.js';
 
 const app = express();
@@ -140,9 +141,58 @@ app.get('/', (req, res) => {
       'GET /api/odds-formats',
       'GET /api/next-matches?league=<league>&format=<format>&limit=<n>',
       'GET /api/historic?league=<league>&start=<yyyy>&end=<yyyy>&format=<format>',
+      'GET /api/debug-dom?league=<league>',
     ],
   });
 });
+
+// Diagnostic: dump what the league list page actually renders as, so
+// selectors can be fixed when OddsPortal changes its markup.
+app.get('/api/debug-dom', withJob(async (req, res) => {
+  const league = req.query.league || 'premier-league';
+  const leagueErr = checkLeague(league);
+  if (leagueErr) return badRequest(res, leagueErr, { leagues: LEAGUES });
+
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage();
+    await page.goto(getUrlFrom(league), { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(12000);
+    const info = await page.evaluate(() => {
+      const q = (s) => document.querySelectorAll(s).length;
+      const testids = {};
+      document.querySelectorAll('[data-testid]').forEach((el) => {
+        const t = el.getAttribute('data-testid');
+        testids[t] = (testids[t] || 0) + 1;
+      });
+      const links = [...document.querySelectorAll('a[href*="/football/"]')]
+        .slice(0, 12).map((a) => a.getAttribute('href'));
+      const rows = [...document.querySelectorAll('div')]
+        .map((d) => d.getAttribute('class'))
+        .filter(Boolean)
+        .filter((c) => /row|match|game|event|fixture/i.test(c))
+        .slice(0, 12);
+      return {
+        title: document.title,
+        url: location.href,
+        bodyTextStart: document.body.innerText.slice(0, 600),
+        testidCounts: testids,
+        counts: {
+          'div[data-testid="game-row"]': q('div[data-testid="game-row"]'),
+          '[data-testid*="game"]': q('[data-testid*="game"]'),
+          '[data-testid*="row"]': q('[data-testid*="row"]'),
+          'a[href*="/h2h/"]': q('a[href*="/h2h/"]'),
+          'a[href*="/football/"]': q('a[href*="/football/"]'),
+        },
+        sampleFootballLinks: links,
+        rowLikeDivClasses: rows,
+      };
+    });
+    res.json({ league, ...info });
+  } finally {
+    try { await browser.close(); } catch (e) { /* ignore */ }
+  }
+}));
 
 app.listen(PORT, '0.0.0.0', () => {
   logger.info(`odds-portal-scraper API listening on port ${PORT}`);
