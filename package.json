@@ -18,7 +18,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
     "commander": "^10.0.1",
-    "playwright": "^1.52.0",
+    "express": "^4.22.3",
+    "playwright": "^1.55.0",
     "user-agents": "^1.1.555",
     "winston": "^3.8.2"
   },
