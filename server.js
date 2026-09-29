@@ -146,18 +146,32 @@ app.get('/', (req, res) => {
   });
 });
 
-// Diagnostic: dump what the league list page actually renders as, so
-// selectors can be fixed when OddsPortal changes its markup.
+// Diagnostic: dump what an OddsPortal page actually renders as, so
+// selectors can be fixed when OddsPortal changes its markup or gating.
+// ?league=<name> for league list pages, or ?path=/football/h2h/... for an arbitrary page path.
 app.get('/api/debug-dom', withJob(async (req, res) => {
-  const league = req.query.league || 'premier-league';
-  const leagueErr = checkLeague(league);
-  if (leagueErr) return badRequest(res, leagueErr, { leagues: LEAGUES });
+  let targetUrl;
+  if (req.query.path) {
+    const p = String(req.query.path);
+    if (!p.startsWith('/') || p.includes('..')) return badRequest(res, 'path must be a site-relative path like /football/h2h/...');
+    targetUrl = `https://www.oddsportal.com${p}`;
+  } else {
+    const league = req.query.league || 'premier-league';
+    const leagueErr = checkLeague(league);
+    if (leagueErr) return badRequest(res, leagueErr, { leagues: LEAGUES });
+    targetUrl = getUrlFrom(league);
+  }
 
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
-    await page.goto(getUrlFrom(league), { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(12000);
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForTimeout(8000);
+    // scroll to trigger lazy loading
+    for (let i = 0; i < 4; i++) {
+      await page.evaluate(() => window.scrollBy(0, 1500));
+      await page.waitForTimeout(1500);
+    }
     const info = await page.evaluate(() => {
       const q = (s) => document.querySelectorAll(s).length;
       const testids = {};
@@ -165,30 +179,27 @@ app.get('/api/debug-dom', withJob(async (req, res) => {
         const t = el.getAttribute('data-testid');
         testids[t] = (testids[t] || 0) + 1;
       });
-      const links = [...document.querySelectorAll('a[href*="/football/"]')]
-        .slice(0, 12).map((a) => a.getAttribute('href'));
-      const rows = [...document.querySelectorAll('div')]
-        .map((d) => d.getAttribute('class'))
-        .filter(Boolean)
-        .filter((c) => /row|match|game|event|fixture/i.test(c))
-        .slice(0, 12);
+      const bodyText = document.body.innerText || '';
+      const tables = [...document.querySelectorAll('table')].slice(0, 3).map((t) =>
+        t.innerText.slice(0, 300).replace(/\n/g, ' | '));
       return {
         title: document.title,
         url: location.href,
-        bodyTextStart: document.body.innerText.slice(0, 600),
+        bodyTextStart: bodyText.slice(0, 600),
+        bodyTextLength: bodyText.length,
+        hasBookmakersHeader: /bookmakers/i.test(bodyText),
+        hasDroppingOdds: /dropping odds/i.test(bodyText),
         testidCounts: testids,
         counts: {
           'div[data-testid="game-row"]': q('div[data-testid="game-row"]'),
-          '[data-testid*="game"]': q('[data-testid*="game"]'),
-          '[data-testid*="row"]': q('[data-testid*="row"]'),
+          '[data-testid]': q('[data-testid]'),
           'a[href*="/h2h/"]': q('a[href*="/h2h/"]'),
-          'a[href*="/football/"]': q('a[href*="/football/"]'),
+          'table': q('table'),
         },
-        sampleFootballLinks: links,
-        rowLikeDivClasses: rows,
+        tableSamples: tables,
       };
     });
-    res.json({ league, ...info });
+    res.json({ targetUrl, ...info });
   } finally {
     try { await browser.close(); } catch (e) { /* ignore */ }
   }
