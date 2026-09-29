@@ -49,7 +49,7 @@ function checkFormat(format) {
 }
 
 async function runScrape(kind, params) {
-  const browser = await launchBrowser();
+  const browser = await launchBrowser({ timezoneId: "UTC", locale: "en-GB" });
   const results = [];
   const errors = [];
   const onResult = async (r) => {
@@ -170,7 +170,7 @@ app.get('/api/debug-dom', withJob(async (req, res) => {
     targetUrl = getUrlFrom(league);
   }
 
-  const browser = await launchBrowser();
+  const browser = await launchBrowser({ timezoneId: "UTC", locale: "en-GB" });
   try {
     const page = await browser.newPage();
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
