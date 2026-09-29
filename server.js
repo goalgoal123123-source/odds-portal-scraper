@@ -191,6 +191,22 @@ app.get('/api/debug-dom', withJob(async (req, res) => {
         try {
           htmlSamples = {};
           for (const sel of htmlSel.split(',').map((s) => s.trim()).filter(Boolean)) {
+            if (sel.startsWith('up=')) {
+              // up=2,span -> outerHTML of 2nd ancestor of elements matching selector
+              const m = sel.match(/^up=(\d+),(.+)$/);
+              if (m) {
+                const n = parseInt(m[1], 10);
+                try {
+                  htmlSamples[sel] = [...document.querySelectorAll(m[2])].slice(0, 3)
+                    .map((el) => {
+                      let a = el;
+                      for (let i = 0; i < n && a.parentElement; i++) a = a.parentElement;
+                      return a.outerHTML.slice(0, 4000);
+                    });
+                } catch (e) { htmlSamples[sel] = ['bad selector: ' + e.message]; }
+                continue;
+              }
+            }
             if (sel.startsWith('text=')) {
               const needle = sel.slice(5).toLowerCase();
               const found = [];
