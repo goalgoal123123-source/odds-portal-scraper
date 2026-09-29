@@ -191,6 +191,24 @@ app.get('/api/debug-dom', withJob(async (req, res) => {
         try {
           htmlSamples = {};
           for (const sel of htmlSel.split(',').map((s) => s.trim()).filter(Boolean)) {
+            if (sel.startsWith('text=')) {
+              const needle = sel.slice(5).toLowerCase();
+              const found = [];
+              const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+              let node;
+              while ((node = walker.nextNode()) && found.length < 3) {
+                const t = (node.textContent || '').trim();
+                if (t.length > 0 && t.length < 60 && t.toLowerCase().includes(needle)
+                    && !['script', 'style'].includes(node.tagName.toLowerCase())) {
+                  // prefer leaf-ish elements
+                  if (![...node.children].some((c) => (c.textContent || '').trim() === t)) {
+                    found.push(node.outerHTML.slice(0, 2500));
+                  }
+                }
+              }
+              htmlSamples[sel] = found;
+              continue;
+            }
             htmlSamples[sel] = [...document.querySelectorAll(sel)].slice(0, 3)
               .map((el) => el.outerHTML.slice(0, 4000));
           }
