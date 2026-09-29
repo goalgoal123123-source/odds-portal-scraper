@@ -51,6 +51,9 @@ Each entry in `matches` looks like:
 ```
 
 Notes:
+- Match times (`day`/`date`/`time`) are rendered in **UTC** — the browser
+  context is pinned to `timezoneId: "UTC"` / `locale: "en-GB"` so output is
+  deterministic (the upstream launcher randomizes timezones per page).
 - Scraping runs against the live site's current markup via the `lib/scraping-v2`
   module (the upstream selectors targeted an older `data-testid` layout).
 - League list URLs use the `/football/...` path form; the legacy `/soccer/...`
