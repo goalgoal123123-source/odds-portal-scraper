@@ -185,13 +185,16 @@ app.get('/api/debug-dom', withJob(async (req, res) => {
         t.innerText.slice(0, 300).replace(/\n/g, ' | '));
       const h2hLinks = [...document.querySelectorAll('a[href*="/h2h/"]')]
         .slice(0, 25).map((a) => a.getAttribute('href'));
-      // optional: raw HTML of elements matching ?html=<selector>
+      // optional: raw HTML of elements matching ?html=<selector> (comma-separated)
       let htmlSamples = null;
       if (htmlSel) {
         try {
-          htmlSamples = [...document.querySelectorAll(htmlSel)].slice(0, 3)
-            .map((el) => el.outerHTML.slice(0, 6000));
-        } catch (e) { htmlSamples = ['bad selector: ' + e.message]; }
+          htmlSamples = {};
+          for (const sel of htmlSel.split(',').map((s) => s.trim()).filter(Boolean)) {
+            htmlSamples[sel] = [...document.querySelectorAll(sel)].slice(0, 3)
+              .map((el) => el.outerHTML.slice(0, 4000));
+          }
+        } catch (e) { htmlSamples = { error: 'bad selector: ' + e.message }; }
       }
       return {
         title: document.title,
