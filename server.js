@@ -26,6 +26,18 @@ import logger from './lib/logger.js';
 const app = express();
 app.use(express.json());
 
+// CORS: allow browser pages on any origin (e.g. the public comparison page
+// served from dochost.co) to call this read-only API directly. Without this,
+// browsers block the response and page fetches fail with "Failed to fetch"
+// even though the API itself works fine.
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const DEFAULT_FORMAT = process.env.ODDS_FORMAT || 'eu';
 const MAX_JOBS = parseInt(process.env.MAX_CONCURRENT_JOBS || '1', 10);
