@@ -17,7 +17,7 @@
 
 import express from 'express';
 import launchBrowser from './lib/browser.js';
-import { historicScraper, nextMatchesScraper, searchMatches } from './lib/scraping-v2/index.js';
+import { historicScraper, nextMatchesScraper, searchMatches, searchAllSports } from './lib/scraping-v2/index.js';
 import { scrapeMatch } from './lib/scraping-v2/scrapeMatch.js';
 import { leaguesUrlsMap, oddsFormatMap } from './lib/constants.js';
 import { getUrlFrom } from './lib/utils/leagues.js';
@@ -161,13 +161,12 @@ app.get('/api/search', withJob(async (req, res) => {
   if (!q) return badRequest(res, 'missing required query param: q (keyword, e.g. ?q=arsenal)');
   const formatErr = checkFormat(format);
   if (formatErr) return badRequest(res, formatErr, { formats: FORMATS });
-  const leagues = String(req.query.leagues || '').split(',').map((x) => x.trim()).filter(Boolean);
-  const unknown = leagues.filter((l) => !leaguesUrlsMap[l]);
-  if (unknown.length) return badRequest(res, `unknown league(s): ${unknown.join(', ')}`, { leagues: LEAGUES });
+  // NOTE: the `leagues` param is deprecated and ignored — search now covers
+  // all sports via OddsPortal's site-wide search page.
 
   const browser = await launchBrowser({ timezoneId: "UTC", locale: "en-GB" });
   try {
-    const results = await searchMatches(browser, q, leagues.length ? leagues : undefined);
+    const results = await searchAllSports(browser, q);
     res.json({ ok: true, query: q, count: results.length, results });
   } finally {
     try { await browser.close(); } catch (e) { logger.warn(`browser close failed: ${e}`); }
@@ -179,8 +178,8 @@ app.get('/api/odds', withJob(async (req, res) => {
   const format = req.query.format || DEFAULT_FORMAT;
   const formatErr = checkFormat(format);
   if (formatErr) return badRequest(res, formatErr, { formats: FORMATS });
-  const m = url.match(/^https:\/\/(www\.)?oddsportal\.com(\/football\/h2h\/[^?#]+)/);
-  if (!m) return badRequest(res, 'url must be an oddsportal.com football h2h match URL');
+  const m = url.match(/^https:\/\/(www\.)?oddsportal\.com(\/[a-z][a-z0-9-]*\/h2h\/[^\s?]+)/);
+  if (!m) return badRequest(res, 'url must be an oddsportal.com <sport>/h2h/… match URL (any sport: football, tennis, basketball, …)');
 
   const browser = await launchBrowser({ timezoneId: "UTC", locale: "en-GB" });
   try {
@@ -191,9 +190,11 @@ app.get('/api/odds', withJob(async (req, res) => {
       const books = (data.mlFullTime || [])
         .filter((b) => b.bookmaker)
         .map((b) => [b.bookmaker, b.home, b.draw, b.away]);
+      const sport = (m[2].match(/^\/([a-z][a-z0-9-]*)\//) || [])[1] || '';
       res.json({
         ok: true,
         snapshot: {
+          sport,
           home: data.homeTeam,
           away: data.awayTeam,
           day: data.day,
@@ -202,7 +203,7 @@ app.get('/api/odds', withJob(async (req, res) => {
           books,
           match_url: data.matchUrl,
           scraped_at: data.scrapedAt,
-          note: '1X2 odds as seen from this server (Singapore for -sg)',
+          note: '1X2 odds (1/2 only for sports without draws, e.g. tennis/basketball) as seen from this server (Singapore for -sg); third-party, reference-only, may be delayed/incomplete; not trading advice.',
         },
       });
     } finally {

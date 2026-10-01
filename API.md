@@ -22,8 +22,8 @@ node server.js        # listens on $PORT (default 8080)
 | GET | `/api/odds-formats` | list of supported odds formats |
 | GET | `/api/next-matches?league=<l>&format=<f>&limit=<n>` | upcoming matches + odds for a league |
 | GET | `/api/historic?league=<l>&start=<yyyy>&end=<yyyy>&format=<f>&limit=<n>` | historical odds for a season range (`limit` per season) |
-| GET | `/api/search?q=<keyword>&leagues=<csv>` | keyword search over upcoming fixtures (default: 8 top leagues); returns `{ ok, query, count, results: [{ title, time, url, league }] }` |
-| GET | `/api/odds?url=<match url>` | 1X2 odds for one match; `url` must be an oddsportal.com `/football/h2h/…` URL; returns `{ ok, snapshot: { home, away, day, date, time, books: [[name, 1, X, 2]], match_url, scraped_at } }` |
+| GET | `/api/search?q=<keyword>` | site-wide keyword search over **all sports** upcoming fixtures (via OddsPortal's own search page); returns `{ ok, query, count, results: [{ title, time, url, league, sport }] }` where `sport` is the URL sport slug (`football`, `tennis`, `basketball`, …). The `leagues` param is deprecated and ignored. |
+| GET | `/api/odds?url=<match url>` | moneyline odds for one match, **any sport**; `url` must be an oddsportal.com `/<sport>/h2h/…` URL (keep the `#fragment` from search results to pin the exact fixture); returns `{ ok, snapshot: { sport, home, away, day, date, time, books: [[name, 1, X, 2]], match_url, scraped_at } }` — for sports without draws (tennis/basketball) the X column is `null` and the table is 1/2 only |
 
 - `format` defaults to `eu`; `limit` defaults to 20 (max 200).
 - Only one scrape job runs at a time by default (`MAX_CONCURRENT_JOBS=1`);
