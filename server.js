@@ -200,10 +200,12 @@ app.get('/api/odds', withJob(async (req, res) => {
           day: data.day,
           date: data.date,
           time: data.time,
+          live: !!data.live,
+          live_score: data.liveScore || null,
           books,
           match_url: data.matchUrl,
           scraped_at: data.scrapedAt,
-          note: '1X2 odds (1/2 only for sports without draws, e.g. tennis/basketball) as seen from this server (Singapore for -sg); third-party, reference-only, may be delayed/incomplete; not trading advice.',
+          note: '1X2 odds (1/2 only for sports without draws, e.g. tennis/basketball) as seen from this server (Singapore for -sg); third-party, reference-only, may be delayed/incomplete; not trading advice.' + (data.live ? ' LIVE in-play odds: snapshot only, prices move during the match.' : ''),
         },
       });
     } finally {
