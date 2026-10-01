@@ -189,7 +189,10 @@ app.get('/api/odds', withJob(async (req, res) => {
       const data = await scrapeMatch(page, m[2], 'search', format);
       const books = (data.mlFullTime || [])
         .filter((b) => b.bookmaker)
-        .map((b) => [b.bookmaker, b.home, b.draw, b.away]);
+        .map((b) => [b.bookmaker, b.home, b.draw, b.away,
+          b.openHome ?? null, b.openDraw ?? null, b.openAway ?? null,
+          b.openHomeTime ?? null, b.openDrawTime ?? null, b.openAwayTime ?? null,
+          b.changeHomeTime ?? null, b.changeDrawTime ?? null, b.changeAwayTime ?? null]);
       const sport = (m[2].match(/^\/([a-z][a-z0-9-]*)\//) || [])[1] || '';
       res.json({
         ok: true,
@@ -205,7 +208,7 @@ app.get('/api/odds', withJob(async (req, res) => {
           books,
           match_url: data.matchUrl,
           scraped_at: data.scrapedAt,
-          note: '1X2 odds (1/2 only for sports without draws, e.g. tennis/basketball) as seen from this server (Singapore for -sg); third-party, reference-only, may be delayed/incomplete; not trading advice.' + (data.live ? ' LIVE in-play odds: snapshot only, prices move during the match.' : ''),
+          note: '1X2 odds (1/2 only for sports without draws, e.g. tennis/basketball) as seen from this server (Singapore for -sg); third-party, reference-only, may be delayed/incomplete; not trading advice. books entries are [name, o1, ox, o2, open1, openX, open2, openTime1, openTimeX, openTime2, changeTime1, changeTimeX, changeTime2] where open* = opening odds (kickoff odds on live pages) with timestamps as shown on OddsPortal.' + (data.live ? ' LIVE in-play odds: snapshot only, prices move during the match.' : ''),
         },
       });
     } finally {
