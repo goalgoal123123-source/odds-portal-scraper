@@ -11,11 +11,14 @@
  *   GET /api/odds-formats
  *   GET /api/next-matches?league=<league>&format=<eu|uk|us|...>&limit=<n>
  *   GET /api/historic?league=<league>&start=<yyyy>&end=<yyyy>&format=<...>&limit=<n> (per season)
+ *   GET /api/search?q=<keyword>&leagues=<csv>&format=<eu|uk|us|...>
+ *   GET /api/odds?url=<oddsportal h2h url>&format=<eu|uk|us|...>
  */
 
 import express from 'express';
 import launchBrowser from './lib/browser.js';
-import { historicScraper, nextMatchesScraper } from './lib/scraping-v2/index.js';
+import { historicScraper, nextMatchesScraper, searchMatches } from './lib/scraping-v2/index.js';
+import { scrapeMatch } from './lib/scraping-v2/scrapeMatch.js';
 import { leaguesUrlsMap, oddsFormatMap } from './lib/constants.js';
 import { getUrlFrom } from './lib/utils/leagues.js';
 import logger from './lib/logger.js';
@@ -140,6 +143,64 @@ app.get('/api/historic', withJob(async (req, res) => {
   res.json({ league, format, startYear, endYear, count: matches.length, matches, ...(errors.length ? { errors } : {}) });
 }));
 
+app.get('/api/search', withJob(async (req, res) => {
+  const q = (req.query.q || '').trim();
+  const format = req.query.format || DEFAULT_FORMAT;
+  if (!q) return badRequest(res, 'missing required query param: q (keyword, e.g. ?q=arsenal)');
+  const formatErr = checkFormat(format);
+  if (formatErr) return badRequest(res, formatErr, { formats: FORMATS });
+  const leagues = String(req.query.leagues || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const unknown = leagues.filter((l) => !leaguesUrlsMap[l]);
+  if (unknown.length) return badRequest(res, `unknown league(s): ${unknown.join(', ')}`, { leagues: LEAGUES });
+
+  const browser = await launchBrowser({ timezoneId: "UTC", locale: "en-GB" });
+  try {
+    const results = await searchMatches(browser, q, leagues.length ? leagues : undefined);
+    res.json({ ok: true, query: q, count: results.length, results });
+  } finally {
+    try { await browser.close(); } catch (e) { logger.warn(`browser close failed: ${e}`); }
+  }
+}));
+
+app.get('/api/odds', withJob(async (req, res) => {
+  const url = (req.query.url || '').trim();
+  const format = req.query.format || DEFAULT_FORMAT;
+  const formatErr = checkFormat(format);
+  if (formatErr) return badRequest(res, formatErr, { formats: FORMATS });
+  const m = url.match(/^https:\/\/(www\.)?oddsportal\.com(\/football\/h2h\/[^?#]+)/);
+  if (!m) return badRequest(res, 'url must be an oddsportal.com football h2h match URL');
+
+  const browser = await launchBrowser({ timezoneId: "UTC", locale: "en-GB" });
+  try {
+    const page = await browser.newPage();
+    try {
+      await page.setViewportSize({ width: 1600, height: 1200 });
+      const data = await scrapeMatch(page, m[2], 'search', format);
+      const books = (data.mlFullTime || [])
+        .filter((b) => b.bookmaker)
+        .map((b) => [b.bookmaker, b.home, b.draw, b.away]);
+      res.json({
+        ok: true,
+        snapshot: {
+          home: data.homeTeam,
+          away: data.awayTeam,
+          day: data.day,
+          date: data.date,
+          time: data.time,
+          books,
+          match_url: data.matchUrl,
+          scraped_at: data.scrapedAt,
+          note: '1X2 odds as seen from this server (Singapore for -sg)',
+        },
+      });
+    } finally {
+      if (!page.isClosed()) await page.close();
+    }
+  } finally {
+    try { await browser.close(); } catch (e) { logger.warn(`browser close failed: ${e}`); }
+  }
+}));
+
 app.get('/', (req, res) => {
   res.json({
     service: 'odds-portal-scraper',
@@ -149,6 +210,8 @@ app.get('/', (req, res) => {
       'GET /api/odds-formats',
       'GET /api/next-matches?league=<league>&format=<format>&limit=<n>',
       'GET /api/historic?league=<league>&start=<yyyy>&end=<yyyy>&format=<format>',
+      'GET /api/search?q=<keyword>&leagues=<csv>&format=<format>',
+      'GET /api/odds?url=<match url>&format=<format>',
     ],
   });
 });
