@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polymarket × 莊家賠率對比</title>
+<style>
+  :root{
+    --bg:#0d1117; --card:#161b22; --card2:#1c2330; --border:#30363d;
+    --text:#e6edf3; --muted:#8b949e; --green:#3fb950; --green-dim:rgba(63,185,80,.12);
+    --blue:#58a6ff; --amber:#d29922; --red:#f85149; --purple:#bc8cff;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang HK","Microsoft JhengHei",sans-serif; line-height:1.5; padding-bottom:60px;}
+  header{background:linear-gradient(135deg,#0d1117 0%,#161b22 100%); border-bottom:1px solid var(--border); padding:22px 16px 16px;}
+  header h1{font-size:1.35rem; font-weight:700;}
+  header h1 .sub{font-size:.8rem; color:var(--muted); font-weight:400; display:block; margin-top:4px;}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 12px;}
+  .notice{background:rgba(210,153,34,.08); border:1px solid rgba(210,153,34,.35); border-radius:12px; padding:12px 14px; margin:14px 0; font-size:.85rem; color:var(--text); line-height:1.7;}
+  .notice b{color:var(--amber);}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:6px;}
+  @media(max-width:900px){ .cols{grid-template-columns:1fr;} }
+  .panel{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; min-width:0;}
+  .panel h2{font-size:1.05rem; margin-bottom:4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .src-badge{font-size:.72rem; font-weight:700; border-radius:6px; padding:2px 8px; vertical-align:middle;}
+  .src-badge.official{background:rgba(63,185,80,.14); color:var(--green); border:1px solid rgba(63,185,80,.4);}
+  .src-badge.third{background:rgba(210,153,34,.14); color:var(--amber); border:1px solid rgba(210,153,34,.4);}
+  .panel .desc{font-size:.78rem; color:var(--muted); margin-bottom:12px; line-height:1.6;}
+  .search-row{display:flex; gap:8px; margin-bottom:8px;}
+  .search-row input{flex:1; background:var(--card2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px 14px; font-size:.92rem; min-width:0;}
+  .search-row input:focus{outline:none; border-color:var(--blue);}
+  .btn{background:var(--blue); color:#fff; border:none; border-radius:10px; padding:10px 18px; font-size:.92rem; font-weight:700; cursor:pointer; white-space:nowrap;}
+  .btn:disabled{opacity:.6; cursor:wait;}
+  .btn.ghost{background:var(--card2); color:var(--text); border:1px solid var(--border); font-weight:400;}
+  .btn.green{background:var(--green);}
+  .chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;}
+  .chips button{background:var(--card2); color:var(--muted); border:1px solid var(--border); border-radius:20px; padding:4px 12px; font-size:.78rem; cursor:pointer;}
+  .chips button:hover{color:var(--text); border-color:var(--blue);}
+  .status{font-size:.85rem; margin:8px 2px; min-height:1.2em; color:var(--muted);}
+  .status.err{color:var(--red);}
+  .status.ok{color:var(--green);}
+  .map-row input.txt{background:var(--card2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:.88rem; width:150px;}
+  .map-row input.txt.num{width:110px;}
+  .map-row input.txt:focus{outline:none; border-color:var(--blue);}
+  .hint{font-size:.75rem; color:var(--muted); line-height:1.6;}
+  .mkt{background:var(--card2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:8px; cursor:pointer;}
+  .mkt:hover{border-color:var(--blue);}
+  .mkt.sel{border-color:var(--green); box-shadow:0 0 0 1px var(--green);}
+  .mkt .t{font-weight:600; font-size:.9rem; margin-bottom:4px;}
+  .mkt .meta{font-size:.78rem; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap;}
+  .tag{font-size:.7rem; font-weight:700; border-radius:5px; padding:1px 6px;}
+  .tag.live{background:rgba(248,81,73,.15); color:var(--red);}
+  .tag.open{background:rgba(63,185,80,.15); color:var(--green);}
+  .detail{margin-top:12px; border-top:1px solid var(--border); padding-top:12px;}
+  .detail h3{font-size:.98rem; margin-bottom:8px;}
+  table.mini{width:100%; border-collapse:collapse; font-size:.85rem; margin-bottom:8px;}
+  table.mini th{background:var(--card2); color:var(--muted); font-weight:600; text-align:left; padding:8px 10px; font-size:.75rem;}
+  table.mini td{padding:8px 10px; border-top:1px solid var(--border); font-variant-numeric:tabular-nums;}
+  table.mini td.num, table.mini th.num{text-align:right;}
+  .dmeta{font-size:.78rem; color:var(--muted); margin:6px 0; line-height:1.7;}
+  .dbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;}
+  .prob-row{display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:.85rem;}
+  .prob-row .lbl{width:52px; flex-shrink:0; color:var(--muted);}
+  .prob-row .bar{flex:1; height:10px; background:#21262d; border-radius:5px; overflow:hidden;}
+  .prob-row .bar i{display:block; height:100%; border-radius:5px;}
+  .prob-row .val{width:56px; text-align:right; font-weight:700; flex-shrink:0;}
+  .odds-wrap{overflow-x:auto; margin-top:8px;}
+  table.odds{width:100%; border-collapse:collapse; font-size:.84rem;}
+  table.odds th{background:var(--card2); color:var(--muted); font-weight:600; text-align:right; padding:8px 10px; font-size:.75rem;}
+  table.odds th:first-child, table.odds td:first-child{text-align:left;}
+  table.odds td{padding:8px 10px; border-top:1px solid var(--border); text-align:right; font-variant-numeric:tabular-nums;}
+  table.odds td.bk{font-weight:600;}
+  .region-tag{font-size:.7rem; margin-left:6px; vertical-align:middle;}
+  td.best-cell{background:var(--green-dim); color:var(--green); font-weight:700;}
+  .op-books{margin-top:4px;}
+  .op-books tr[data-bk]{cursor:pointer;}
+  .op-books tr[data-bk]:hover td{background:rgba(88,166,255,.07);}
+  .op-books tr.selrow td{background:var(--green-dim);}
+  .op-back{margin-bottom:4px;}
+  .bookie-count{font-size:.75rem; color:var(--muted); margin-top:8px; line-height:1.6;}
+  #compare-sec{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; margin-top:14px;}
+  #compare-sec h2{font-size:1.05rem; margin-bottom:4px;}
+  #compare-sec .desc{font-size:.78rem; color:var(--muted); margin-bottom:12px; line-height:1.6;}
+  .map-row{display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:.88rem; flex-wrap:wrap;}
+  .map-row .oc{font-weight:600; min-width:120px;}
+  .map-row .arrow{color:var(--muted);}
+  .map-row select{background:var(--card2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:.88rem;}
+  table.cmp{width:100%; border-collapse:collapse; font-size:.9rem; margin-top:10px;}
+  table.cmp th{background:var(--card2); color:var(--muted); font-weight:600; padding:10px 12px; font-size:.78rem; text-align:right;}
+  table.cmp th:first-child, table.cmp td:first-child{text-align:left;}
+  table.cmp td{padding:10px 12px; border-top:1px solid var(--border); text-align:right; font-variant-numeric:tabular-nums; font-weight:600;}
+  table.cmp td.gap-pos{color:var(--blue);}
+  table.cmp td.gap-neg{color:var(--amber);}
+  .cmp-note{font-size:.78rem; color:var(--muted); margin-top:10px; line-height:1.7;}
+  .empty{padding:24px; text-align:center; color:var(--muted); font-size:.88rem;}
+  footer{margin-top:26px; padding:16px; font-size:.75rem; color:var(--muted); border-top:1px solid var(--border); line-height:1.8;}
+  footer b{color:var(--text);}
+  /* ---- Polymarket 持倉詳情（與持倉追蹤站一致） ---- */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;}
+  .card{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px;}
+  .card .k{font-size:.72rem;color:var(--muted);margin-bottom:6px;line-height:1.5;}
+  .card .v{font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums;}
+  .up{color:var(--green);} .down{color:var(--red);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media(max-width:700px){.grid2{grid-template-columns:1fr;}}
+  .tlink{color:var(--blue);text-decoration:underline;cursor:pointer;}
+  .tag.yes{background:rgba(63,185,80,.15);color:var(--green);}
+  .tag.no{background:rgba(248,81,73,.15);color:var(--red);}
+  table.win-table{width:100%;border-collapse:collapse;font-size:.78rem;background:var(--card2);border-radius:10px;overflow:hidden;}
+  .win-table th,.win-table td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;}
+  .win-table th{color:var(--muted);font-weight:600;font-size:.7rem;white-space:nowrap;}
+  .win-table td:first-child,.win-table th:first-child{text-align:left;}
+  .win-table tr:hover td{background:rgba(88,166,255,.05);}
+  .win-table tr.totrow td{background:rgba(63,185,80,.06);border-top:2px solid var(--border);font-weight:700;}
+  .win-table tr.totrow:hover td{background:rgba(63,185,80,.06);}
+  .dnote{font-size:.75rem;color:var(--muted);margin-top:8px;line-height:1.7;}
+  .derr{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.4);color:#fca5a5;padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:.85rem;}
+  #tradeModal h3{margin-bottom:10px;font-size:1rem;}
+  @media(max-width:560px){
+    header h1{font-size:1.1rem;}
+    table.odds{font-size:.78rem;}
+    .map-row .oc{min-width:0;}
+    #op-panel{padding:10px;}
+    .map-row input.txt{width:120px;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>🔀 Polymarket × 莊家賠率對比<span class="sub">Polymarket 官方市場數據 · 對照 OddsPortal 莊家賠率（新加坡自動抓取）</span></h1>
+  </div>
+</header>
+<div class="wrap">
+  <div class="notice">
+    <b>數據來源說明：</b>左邊 Polymarket 數據嚟自 <b>官方 API</b>（即時）。右邊係<b>新加坡自動抓取</b>，經新加坡 IP 即時抓取 OddsPortal 賽前賠率（第三方數據，睇到最多莊家，只供參考）。<b>唔構成任何交易建議，亦唔會產生跟單訊號。</b>
+  </div>
+  <div class="cols">
+    <section class="panel" id="pm-panel">
+      <h2>📈 Polymarket 市場 <span class="src-badge official">官方 API</span></h2>
+      <div class="desc">經 Polymarket 官方 public-search API 即時搜尋進行中市場。撳結果可載入詳情。</div>
+      <div class="search-row">
+        <input id="pm-q" type="text" placeholder="搜尋 Polymarket 市場…（例如：Arsenal、英超）" aria-label="搜尋 Polymarket 市場">
+        <button class="btn" id="pm-go">搜尋</button>
+      </div>
+      <div class="chips" id="pm-chips"></div>
+      <div class="status" id="pm-status"></div>
+      <div id="pm-results"></div>
+      <div id="pm-detail"></div>
+    </section>
+        <section class="panel" id="op-panel">
+      <h2>🏟️ OddsPortal 莊家賠率 <span class="src-badge third">新加坡自動抓取</span></h2>
+      <div class="desc">經<b>新加坡 IP</b>即時抓取 OddsPortal 賽前 1X2 賠率 — 新加坡視角睇到最多莊家（實測一場英超 11 間，美國 IP 得 ~4 間）。<b>第三方數據，只供參考。</b>撳莊家行可自動填入下面對比表。</div>
+      <div class="search-row">
+        <input id="op-q" type="text" placeholder="搜尋賽事…（例如：Arsenal、Djokovic、Lakers）" aria-label="搜尋 OddsPortal 賽事">
+        <button class="btn" id="op-go">搜尋</button>
+      </div>
+      <div class="chips" id="op-chips"></div>
+      <div class="status" id="op-status"></div>
+      <div id="op-results"></div>
+      <div id="op-detail"></div>
+      <div class="hint" style="margin-top:8px;">⏱️ 免費機抓取需時：搜尋約 1 分鐘、每場賠率約半分鐘；部機瞓緊會再耐啲。撳莊家行 → 自動填主／和／客賠率去下面對比。</div>
+    </section>
+  </div>
+  <section id="compare-sec">
+    <h2>⚖️ 對比</h2>
+    <div class="desc">左邊揀一個 Polymarket 市場（每個結果對應到主／和／客，可手動改）；下面將右邊（OddsPortal 新加坡抓取）嘅 1X2 賠率填入（撳莊家行會自動填），呢度會計去水後概率再並排比較。<b>純數據展示，唔構成交易建議。</b></div>
+    <div class="map-row">
+      <span class="oc">主隊名</span><input id="bk-home" class="txt" type="text" placeholder="例如：Arsenal">
+      <span class="oc">客隊名</span><input id="bk-away" class="txt" type="text" placeholder="例如：Leeds">
+      <button class="btn ghost" id="bk-automap" style="padding:8px 14px; font-size:.85rem;">按隊名自動估對應</button>
+    </div>
+    <div class="map-row">
+      <span class="oc">主勝 1</span><input id="bk-o1" class="txt num" type="number" step="0.01" min="1.01" placeholder="例如：2.10">
+      <span class="oc">和局 X</span><input id="bk-ox" class="txt num" type="number" step="0.01" min="1.01" placeholder="例如：3.60">
+      <span class="oc">客勝 2</span><input id="bk-o2" class="txt num" type="number" step="0.01" min="1.01" placeholder="例如：3.40">
+    </div>
+    <div class="hint" style="margin-bottom:10px;">賠率嚟自右邊新加坡自動抓取（OddsPortal）；撳莊家行會自動填入，亦可手動改。建議用最好嗰個賠率。去水概率 = (1 ÷ 賠率) ÷ 三者之和。</div>
+    <div id="map-ui"><div class="empty">請先喺左邊揀一個 Polymarket 市場，呢度會出現對應設定同對比表。</div></div>
+    <div id="cmp-table"></div>
+    <div class="cmp-note" id="cmp-note" style="display:none"></div>
+  </section>
+  <footer>
+    <b>數據來源</b><br>
+    · Polymarket：官方 API（gamma-api.polymarket.com），即時數據。<br>
+    · 莊家賠率：經新加坡 IP 自動抓取 OddsPortal 全站賽前賠率（足球、網球、籃球等全部體育）；數據由第三方提供，只供參考，可能有延遲或誤差。<br>
+    · 本站<b>無使用 The Odds API</b>（the-odds-api.com）。<br><br>
+    <b>聲明</b><br>
+    · 第三方莊家數據只供參考，可能有延遲、缺漏或誤差；唔構成任何投資、投注或交易建議。<br>
+    · 本站不設任何跟單訊號（follow Yes／No）。
+  </footer>
+</div>
+<script>
+"use strict";
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function parseJSON(s,fb){ try{ const v=JSON.parse(s); return v==null?fb:v; }catch(e){ return fb; } }
+async function api(url){
+  const sep=url.indexOf("?")>=0?"&":"?";
+  const r=await fetch(url+sep+"_cb="+Date.now());
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}
+function fmtUSD(x){ if(x==null||isNaN(x))return "—"; const s=x<0?"-":""; x=Math.abs(x);
+  return s+"$"+x.toLocaleString("en-US",{maximumFractionDigits:2,minimumFractionDigits:2}); }
+function pct(x){ if(x==null||isNaN(x))return "—"; return (x*100).toFixed(1)+"%"; }
+let PM_RESULTS=[], PM_SEL=null, PM_IDX=-1;
+const WINDOWS=[["24小時",86400],["3小時",10800],["1小時",3600],["15分鐘",900],["5分鐘",300],["3分鐘",180],["1分鐘",60]];
+const HNAMES={};
+function fmtNum(x,d){ if(x==null||isNaN(x))return "—"; return Number(x).toLocaleString("en-US",{maximumFractionDigits:d==null?2:d,minimumFractionDigits:d==null?2:d}); }
+function fmtShares(x){ if(x==null||isNaN(x))return "—"; return Number(x).toLocaleString("en-US",{maximumFractionDigits:2}); }
+function shortW(w){ return w?w.slice(0,6)+"…"+w.slice(-4):"—"; }
+function dname(h){ const n=h.name||"",p=h.pseudonym||""; if(n&&!/^0x[0-9a-fA-F]{40}-\d+$/.test(n))return n; return p||shortW(h.proxyWallet); }
+const PM_CHIPS=["Arsenal","Liverpool","Man City","Real Madrid","Barcelona","英超"];
+$("pm-chips").innerHTML=PM_CHIPS.map(function(c){
+  return '<button data-q="'+esc(c)+'">'+esc(c)+'</button>';
+}).join("");
+$("pm-chips").addEventListener("click",function(e){
+  const b=e.target.closest("button"); if(!b) return;
+  $("pm-q").value=b.getAttribute("data-q"); pmSearch();
+});
+function pmStatus(msg,cls){ const el=$("pm-status"); el.className="status "+(cls||""); el.innerHTML=msg||""; }
+$("pm-go").onclick=pmSearch;
+$("pm-q").addEventListener("keydown",function(e){ if(e.key==="Enter") pmSearch(); });
+async function pmSearch(){
+  const q=$("pm-q").value.trim();
+  if(q.length<2){ pmStatus("請輸入至少兩個字。","err"); return; }
+  const btn=$("pm-go"); btn.disabled=true; btn.textContent="搜尋緊…";
+  pmStatus("🔍 搜尋緊 Polymarket「"+esc(q)+"」…"); $("pm-results").innerHTML=""; $("pm-detail").innerHTML="";
+  try{
+    let events=[],page=1,hasMore=true;
+    while(hasMore&&page<=12){
+      const d=await api("https://gamma-api.polymarket.com/public-search?q="+encodeURIComponent(q)+"&page="+page);
+      const evs=d.events||[]; events=events.concat(evs);
+      hasMore=!!(d.pagination&&d.pagination.hasMore)&&evs.length>0; page++;
+    }
+    let mkts=[];
+    for(const e of events){
+      const live=e.live===true;
+      for(const m of (e.markets||[])){
+        if(!(m.active&&!m.closed)) continue;
+        mkts.push({
+          eventTitle:e.title, live:live||m.live===true, cond:m.conditionId,
+          question:m.question||e.title,
+          outcomes:parseJSON(m.outcomes,["Yes","No"]),
+          prices:parseJSON(m.outcomePrices,[]).map(Number),
+          volume:parseFloat(m.volume)||0, endDate:m.endDateIso||m.endDate||""
+        });
+      }
+    }
+    const seen={},uniq=[];
+    for(const m of mkts){ if(!m.cond||seen[m.cond]) continue; seen[m.cond]=1; uniq.push(m); }
+    uniq.sort(function(a,b){ return ((b.live?1:0)-(a.live?1:0))||(b.volume-a.volume); });
+    PM_RESULTS=uniq;
+    pmStatus(uniq.length?("搵到 "+uniq.length+" 個進行中市場（即場置頂，按 trading volume 排列）"):"冇搵到進行中嘅相關市場", uniq.length?"ok":"");
+    $("pm-results").innerHTML=uniq.map(function(m,i){
+      const pr=m.prices.map(function(p,j){ return esc(m.outcomes[j]||"")+" "+(isNaN(p)?"—":p.toFixed(2)); }).join(" · ");
+      return '<div class="mkt" data-i="'+i+'"><div class="t">'+(m.live?'<span class="tag live">即場</span> ':'')+
+        '<span class="tag open">進行中</span> '+esc(m.question)+'</div>'+
+        '<div class="meta"><span>'+esc(pr)+'</span><span>Volume '+fmtUSD(m.volume)+'</span></div></div>';
+    }).join("");
+  }catch(e){
+    pmStatus("❌ 搜尋失敗："+esc(e.message||e),"err");
+  }finally{
+    btn.disabled=false; btn.textContent="搜尋";
+  }
+}
+$("pm-results").addEventListener("click",function(e){
+  const c=e.target.closest(".mkt"); if(!c) return;
+  pmSelect(+c.getAttribute("data-i"));
+});
+function pmSelect(i){
+  const m=PM_RESULTS[i]; if(!m) return;
+  PM_SEL=m; PM_IDX=i;
+  const cards=$("pm-results").querySelectorAll(".mkt");
+  cards.forEach(function(c){ c.classList.toggle("sel",+c.getAttribute("data-i")===i); });
+  pmLoadDetail();
+  renderCompare();
+}
+async function pmLoadDetail(){
+  const m=PM_SEL; if(!m) return;
+  const box=$("pm-detail");
+  box.innerHTML='<div class="detail"><h3>'+esc(m.question)+'</h3><div class="status">載入全市場數據中…</div></div>';
+  try{
+    const holdersP=api("https://data-api.polymarket.com/holders?market="+m.cond+"&limit=200").catch(function(){return [];});
+    const tradesP=api("https://data-api.polymarket.com/trades?market="+m.cond+"&limit=1000").catch(function(){return [];});
+    const holders=await holdersP, trades=await tradesP;
+    const toks=Array.isArray(holders)?holders:[];
+    const nowS=Date.now()/1000;
+    const wsum=WINDOWS.map(function(){return {yes:0,no:0};});
+    const perWallet={};
+    for(const t of (trades||[])){
+      if(!t)continue;
+      const ts=+t.timestamp||0; if(!ts)continue;
+      const oi=+t.outcomeIndex;
+      const d=(t.side==="BUY"?1:-1)*(+t.size||0); if(!d)continue;
+      WINDOWS.forEach(function(w,wi){ if(nowS-ts<=w[1]){ const o=wsum[wi]; if(oi===0)o.yes+=d; else o.no+=d; } });
+      const k=(t.proxyWallet||"")+"|"+oi;
+      perWallet[k]=perWallet[k]||{wallet:t.proxyWallet,name:dname(t),oi:oi,deltas:WINDOWS.map(function(){return 0;})};
+      WINDOWS.forEach(function(w,wi){ if(nowS-ts<=w[1])perWallet[k].deltas[wi]+=d; });
+    }
+    const oc0=m.outcomes[0]||"Yes", oc1=m.outcomes[1]||"No";
+    const sumTok=function(idx){
+      return toks.filter(function(t){return +(((t.holders||[])[0]||{}).outcomeIndex||0)===idx;})
+        .reduce(function(a,t){return a+(t.holders||[]).reduce(function(x,h){return x+(+h.amount||0);},0);},0);
+    };
+    const tot0=sumTok(0), tot1=sumTok(1);
+    const top=function(idx){
+      const arr=[];
+      for(const t of toks)for(const h of (t.holders||[])){ if(+h.outcomeIndex===idx)arr.push(h); }
+      arr.sort(function(a,b){return (+b.amount||0)-(+a.amount||0);});
+      return arr.slice(0,20);
+    };
+    const top0=top(0), top1=top(1);
+    const sumWin=function(arr){
+      return WINDOWS.map(function(_,wi){
+        return arr.reduce(function(a,h){
+          const pw=perWallet[h.proxyWallet+"|"+(+h.outcomeIndex)];
+          return a+(pw?pw.deltas[wi]:0);
+        },0);
+      });
+    };
+    const sw0=sumWin(top0), sw1=sumWin(top1);
+    const restRow=function(vals){
+      return "<tr><td><b>其餘所有交易者</b></td><td class='num'>—</td><td class='num'>—</td>"+
+        vals.map(function(v){return "<td class='num "+(v>=0?"up":"down")+"'><b>"+(v>=0?"+":"")+fmtShares(v)+"</b></td>";}).join("")+"</tr>";
+    };
+    const rr0=restRow(wsum.map(function(o,wi){return o.yes-sw0[wi];}));
+    const rr1=restRow(wsum.map(function(o,wi){return o.no-sw1[wi];}));
+    const totRow=function(tot,winVals,oi){
+      return "<tr class='totrow'><td><b>總持倉數</b></td><td class='num'><b>"+fmtShares(tot)+"</b></td>"+
+        "<td class='num totavg' data-oi='"+oi+"'>…</td>"+
+        winVals.map(function(v){return "<td class='num "+(v>=0?"up":"down")+"'><b>"+(v>=0?"+":"")+fmtShares(v)+"</b></td>";}).join("")+"</tr>";
+    };
+    const tr0=totRow(tot0,wsum.map(function(o){return o.yes;}),0);
+    const tr1=totRow(tot1,wsum.map(function(o){return o.no;}),1);
+    const wrows=wsum.map(function(o,wi){
+      const yn=o.yes>=0?"+":"", nn=o.no>=0?"+":"";
+      return "<tr><td>"+WINDOWS[wi][0]+"</td><td class='num "+(o.yes>=0?"up":"down")+"'>"+yn+fmtShares(o.yes)+
+        "</td><td class='num "+(o.no>=0?"up":"down")+"'>"+nn+fmtShares(o.no)+"</td></tr>";
+    }).join("");
+    const hrow=function(h){
+      const k=h.proxyWallet+"|"+(+h.outcomeIndex);
+      const pw=perWallet[k];
+      const raw=dname(h); HNAMES[k]=raw;
+      const nm=h.proxyWallet?'<a class="tlink" href="javascript:void(0)" onclick="showTraderTrades(\''+h.proxyWallet+'\','+(+h.outcomeIndex)+')">'+esc(raw)+'</a>':esc(raw);
+      const ds=pw?pw.deltas.map(function(d){
+        return "<td class='num "+(d>=0?"up":"down")+"'>"+(d>=0?"+":"")+fmtShares(d)+"</td>";
+      }).join(""):WINDOWS.map(function(){return "<td class='num'>—</td>";}).join("");
+      const avgCell=h.proxyWallet?"<td class='num avgcell' data-w='"+h.proxyWallet+"' data-oi='"+(+h.outcomeIndex)+"'>—</td>":"<td class='num'>—</td>";
+      return "<tr><td>"+nm+"</td><td class='num'>"+fmtShares(h.amount)+"</td>"+avgCell+ds+"</tr>";
+    };
+    const hhead="<tr><th>交易者</th><th>目前 Shares</th><th>均價</th>"+WINDOWS.map(function(w){return "<th>"+w[0]+"變化</th>";}).join("")+"</tr>";
+    const updTime=new Date().toLocaleString("zh-HK",{hour12:false});
+    box.innerHTML='<div class="detail"><h3>'+esc(m.question)+'</h3>'+
+      '<div class="dbar"><button class="btn ghost" id="pm-refresh">↻ 更新市場數據</button>'+
+      '<span class="hint">撳按鈕重新讀取持倉者及成交數據</span></div>'+
+      '<div class="dmeta">Volume '+fmtUSD(m.volume)+(m.endDate?(" · 結算 "+esc(String(m.endDate).slice(0,10))):"")+
+      '<br>數據更新時間：'+updTime+'（官方 API）</div>'+
+      '<div class="grid2"><div class="card"><div class="k">全市場 '+esc(oc0)+' 總 shares（前200大持倉者合計）</div><div class="v num">'+fmtShares(tot0)+'</div></div>'+
+      '<div class="card"><div class="k">全市場 '+esc(oc1)+' 總 shares（前200大持倉者合計）</div><div class="v num">'+fmtShares(tot1)+'</div></div></div>'+
+      '<h3 style="margin:14px 0 8px;font-size:.95rem;">各時段淨買賣 shares（買入 − 賣出）</h3>'+
+      '<div style="overflow-x:auto"><table class="win-table"><tr><th>時段</th><th>'+esc(oc0)+'</th><th>'+esc(oc1)+'</th></tr>'+wrows+'</table></div>'+
+      '<div class="dnote">時段變化以全市場成交紀錄嘅買入減賣出計算；split／merge／贖回等操作未必反映在內。</div>'+
+      '<h3 style="margin:14px 0 8px;font-size:.95rem;">'+esc(oc0)+' 首 20 名持倉者</h3>'+
+      '<div style="overflow-x:auto"><table class="win-table">'+hhead+top0.map(hrow).join("")+rr0+tr0+'</table></div>'+
+      '<h3 style="margin:14px 0 8px;font-size:.95rem;">'+esc(oc1)+' 首 20 名持倉者</h3>'+
+      '<div style="overflow-x:auto"><table class="win-table">'+hhead+top1.map(hrow).join("")+rr1+tr1+'</table></div>'+
+      '<div class="dnote">持倉者排名來自官方 holders API；時段變化來自近期成交紀錄（最多1000筆）。撳「↻ 更新市場數據」可重新讀取。撳交易者名可睇佢喺呢個市場嘅過往交易紀錄。「均價」係該交易者錢包喺呢個市場呢個結果嘅持倉均價（官方 positions API），查唔到會顯示「—」；「總持倉數」行嘅均價係所有持倉者按目前持倉量加權嘅平均買入價。</div></div>';
+    $("pm-refresh").onclick=function(){ pmLoadDetail(); };
+    const allH={0:{},1:{}};
+    for(const t of toks)for(const h of (t.holders||[])){
+      const oi=+h.outcomeIndex, w=h.proxyWallet;
+      if(!w||(oi!==0&&oi!==1))continue;
+      allH[oi][w]=(allH[oi][w]||0)+(+h.amount||0);
+    }
+    const wallets=Array.from(new Set(Object.keys(allH[0]).concat(Object.keys(allH[1]))));
+    loadAvgPrices(wallets,allH);
+  }catch(e){
+    box.innerHTML='<div class="detail"><div class="derr">載入市場詳情失敗：'+esc(e.message||e)+'</div></div>';
+  }
+}
+async function loadAvgPrices(wallets,allH){
+  const cond=PM_SEL&&PM_SEL.cond; if(!cond) return;
+  const cells={};
+  document.querySelectorAll("#pm-detail td.avgcell").forEach(function(td){
+    const k=td.dataset.w+"|"+td.dataset.oi; (cells[k]=cells[k]||[]).push(td);
+  });
+  const wsumP={0:{s:0,w:0},1:{s:0,w:0}};
+  const B=10;
+  for(let s=0;s<wallets.length;s+=B){
+    await Promise.all(wallets.slice(s,s+B).map(async function(w){
+      try{
+        const ps=await api("https://data-api.polymarket.com/positions?user="+w+"&limit=500");
+        for(const p of (ps||[])){
+          if(p.conditionId!==cond)continue;
+          const oi=+p.outcomeIndex; if(oi!==0&&oi!==1)continue;
+          const ap=+p.avgPrice; if(p.avgPrice==null||!isFinite(ap))continue;
+          const k=w+"|"+oi;
+          if(cells[k])cells[k].forEach(function(td){td.textContent=fmtNum(ap);});
+          const sh=(allH[oi]||{})[w]||0;
+          if(sh>0){wsumP[oi].s+=ap*sh;wsumP[oi].w+=sh;}
+        }
+      }catch(e){}
+    }));
+  }
+  [0,1].forEach(function(oi){
+    document.querySelectorAll('#pm-detail td.totavg[data-oi="'+oi+'"]').forEach(function(td){
+      td.textContent=wsumP[oi].w>0?fmtNum(wsumP[oi].s/wsumP[oi].w):"—";
+    });
+  });
+}
+function closeTradeModal(){ $("tradeModal").style.display="none"; }
+async function showTraderTrades(wallet,oi){
+  const m=PM_SEL; if(!m) return;
+  const nm=HNAMES[wallet+"|"+oi]||shortW(wallet);
+  const oc=(m.outcomes||[])[oi]||(oi===0?"Yes":"No");
+  const box=$("tradeModalBody");
+  $("tradeModal").style.display="flex";
+  box.innerHTML='<h3>'+esc(nm)+' <span class="tag '+(oi===0?"yes":"no")+'">'+esc(oc)+'</span></h3><div class="status">載入交易紀錄中…</div>';
+  try{
+    const trs=await api("https://data-api.polymarket.com/trades?market="+m.cond+"&user="+wallet+"&limit=200");
+    const list=(trs||[]).filter(function(t){return +t.outcomeIndex===oi;});
+    if(!list.length){box.innerHTML='<h3>'+esc(nm)+'</h3><div class="dnote">呢個市場暫時冇 '+esc(oc)+' 嘅成交紀錄（持倉可能經 split／轉移得嚟）。</div>';return;}
+    let bS=0,bA=0,sS=0,sA=0;
+    for(const t of list){const sz=+t.size||0,pr=+t.price||0;if(t.side==="BUY"){bS+=sz;bA+=sz*pr;}else{sS+=sz;sA+=sz*pr;}}
+    const avg=function(a,s){return s>0?a/s:0;};
+    const rows=list.map(function(t){
+      const sz=+t.size||0,pr=+t.price||0;
+      const tag=t.side==="BUY"?'<span class="tag yes">買入</span>':'<span class="tag no">賣出</span>';
+      return "<tr><td>"+new Date((+t.timestamp||0)*1000).toLocaleString("zh-HK",{hour12:false})+"</td><td>"+tag+"</td><td class='num'>"+fmtNum(pr)+"</td><td class='num'>"+fmtShares(sz)+"</td><td class='num'>"+fmtUSD(sz*pr)+"</td></tr>";
+    }).join("");
+    box.innerHTML='<h3>'+esc(nm)+' <span class="tag '+(oi===0?"yes":"no")+'">'+esc(oc)+'</span></h3>'+
+      '<div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">'+
+      '<div class="card"><div class="k">買入總 Shares</div><div class="v num">'+fmtShares(bS)+'</div></div>'+
+      '<div class="card"><div class="k">平均買入價</div><div class="v num">'+fmtNum(avg(bA,bS))+'</div></div>'+
+      '<div class="card"><div class="k">買入金額</div><div class="v num">'+fmtUSD(bA)+'</div></div>'+
+      '<div class="card"><div class="k">賣出總 Shares</div><div class="v num">'+fmtShares(sS)+'</div></div>'+
+      '<div class="card"><div class="k">平均賣出價</div><div class="v num">'+fmtNum(avg(sA,sS))+'</div></div>'+
+      '<div class="card"><div class="k">賣出金額</div><div class="v num">'+fmtUSD(sA)+'</div></div></div>'+
+      '<div style="overflow-x:auto;max-height:50vh;overflow-y:auto"><table class="win-table"><tr><th>時間</th><th>方向</th><th>價格</th><th>Shares</th><th>金額</th></tr>'+rows+'</table></div>'+
+      '<div class="dnote">最多顯示 200 筆近期成交；金額 = Shares × 價格。</div>';
+  }catch(e){box.innerHTML='<h3>'+esc(nm)+'</h3><div class="derr">載入失敗：'+esc(e.message||e)+'</div>';}
+}
+document.addEventListener("keydown",function(e){ if(e.key==="Escape")closeTradeModal(); });
+const SLOT_LABEL={h:"主勝",x:"和局",a:"客勝"};
+let MAP={};
+function guessMap(outcome,question,home,away){
+  const o=String(outcome).toLowerCase().trim(), q=String(question).toLowerCase();
+  const hn=home.toLowerCase(), an=away.toLowerCase();
+  const oHasH=o.indexOf(hn)>=0&&hn.length>1, oHasA=o.indexOf(an)>=0&&an.length>1;
+  if(oHasH&&!oHasA) return "h";
+  if(oHasA&&!oHasH) return "a";
+  if(/draw/.test(o)||o.indexOf("和局")>=0||o.indexOf("平局")>=0||o.indexOf("tie")>=0) return "x";
+  if(o==="yes"){
+    const qHasH=q.indexOf(hn)>=0&&hn.length>1, qHasA=q.indexOf(an)>=0&&an.length>1;
+    if(qHasH&&!qHasA) return "h";
+    if(qHasA&&!qHasH) return "a";
+  }
+  return "";
+}
+function bkOdds(){
+  const v=function(id){ const x=parseFloat($(id).value); return (x>1&&isFinite(x))?x:null; };
+  const o1=v("bk-o1"),ox=v("bk-ox"),o2=v("bk-o2");
+  return (o1&&o2)?{o1:o1,ox:ox||null,o2:o2}:null;
+}
+function devig(o){
+  if(o.ox){ const i1=1/o.o1,ix=1/o.ox,i2=1/o.o2,s=i1+ix+i2;
+    return {p1:i1/s,px:ix/s,p2:i2/s,twoWay:false}; }
+  const i1=1/o.o1,i2=1/o.o2,s=i1+i2;
+  return {p1:i1/s,px:null,p2:i2/s,twoWay:true};
+}
+function renderCompare(){
+  const mapBox=$("map-ui"), cmpBox=$("cmp-table"), note=$("cmp-note");
+  if(!PM_SEL){
+    mapBox.innerHTML='<div class="empty">請先喺左邊揀一個 Polymarket 市場，呢度會出現對應設定同對比表。</div>';
+    cmpBox.innerHTML=""; note.style.display="none";
+    return;
+  }
+  const home=$("bk-home").value.trim(), away=$("bk-away").value.trim();
+  const key=PM_SEL.cond+"|"+home+"|"+away;
+  if(renderCompare._key!==key){
+    renderCompare._key=key; MAP={};
+    PM_SEL.outcomes.forEach(function(oc,j){
+      MAP[j]=guessMap(oc,PM_SEL.question,home,away);
+    });
+  }
+  mapBox.innerHTML='<div style="font-size:.85rem;color:var(--muted);margin-bottom:8px;">Polymarket「'+esc(PM_SEL.question)+'」嘅結果 → 對應：</div>'+
+    PM_SEL.outcomes.map(function(oc,j){
+      const p=PM_SEL.prices[j];
+      const opts=[["","不對應"],["h","主勝"+(home?"（"+home+"）":"")],["x","和局"],["a","客勝"+(away?"（"+away+"）":"")]];
+      return '<div class="map-row"><span class="oc">'+esc(oc)+' <span style="color:var(--muted);font-weight:400;">('+(isNaN(p)?"—":p.toFixed(2))+')</span></span>'+
+        '<span class="arrow">→</span><select data-j="'+j+'">'+opts.map(function(o){
+          return '<option value="'+o[0]+'"'+(MAP[j]===o[0]?" selected":"")+'>'+esc(o[1])+'</option>';
+        }).join("")+'</select></div>';
+    }).join("");
+  mapBox.querySelectorAll("select").forEach(function(sel){
+    sel.onchange=function(){ MAP[+sel.getAttribute("data-j")]=sel.value; drawCmpTable(); };
+  });
+  drawCmpTable();
+}
+$("bk-automap").onclick=function(){
+  renderCompare._key="";
+  renderCompare();
+};
+["bk-o1","bk-ox","bk-o2"].forEach(function(id){ $(id).addEventListener("input",drawCmpTable); });
+["bk-home","bk-away"].forEach(function(id){ $(id).addEventListener("input",renderCompare); });
+function drawCmpTable(){
+  const cmpBox=$("cmp-table"), note=$("cmp-note");
+  const o=bkOdds();
+  if(!PM_SEL||!o){
+    cmpBox.innerHTML='<div class="empty" style="padding:12px;">'+(PM_SEL?"請喺上面填齊主隊／客隊兩個賠率（要大過 1；足球先需要填埋和局）。":"")+'</div>';
+    note.style.display="none"; return;
+  }
+  const c=devig(o);
+  const slotPrice={h:null,x:null,a:null};
+  PM_SEL.outcomes.forEach(function(oc,j){
+    const slot=MAP[j];
+    if(slot&&slotPrice[slot]===null){
+      const p=PM_SEL.prices[j];
+      if(!isNaN(p)) slotPrice[slot]=p;
+    }
+  });
+  const rows=c.twoWay?[
+    ["主隊",slotPrice.h,c.p1],
+    ["客隊",slotPrice.a,c.p2]
+  ]:[
+    ["主勝",slotPrice.h,c.p1],
+    ["和局",slotPrice.x,c.px],
+    ["客勝",slotPrice.a,c.p2]
+  ];
+  cmpBox.innerHTML='<table class="cmp"><tr><th>結果</th><th>Polymarket 隱含概率</th><th>莊家去水概率</th><th>差異</th></tr>'+
+    rows.map(function(r){
+      const gap=(r[1]==null)?null:r[1]-r[2];
+      const gapTxt=gap==null?"—":((gap>=0?"+":"")+(gap*100).toFixed(1)+"pp");
+      const gapCls=gap==null?"":(gap>=0?"gap-pos":"gap-neg");
+      return "<tr><td>"+r[0]+"</td><td>"+pct(r[1])+"</td><td>"+pct(r[2])+"</td><td class='"+gapCls+"'>"+gapTxt+"</td></tr>";
+    }).join("")+'</table>';
+  note.style.display="";
+  const oddsTxt=c.twoWay?(o.o1.toFixed(2)+"／"+o.o2.toFixed(2)):(o.o1.toFixed(2)+"／"+o.ox.toFixed(2)+"／"+o.o2.toFixed(2));
+  note.innerHTML='差異 = Polymarket 隱含概率 − 莊家去水後概率（百分點）。Polymarket 價格為官方 API 即時數據；莊家概率由你手動輸入嘅賠率（'+
+    oddsTxt+'，去水後總和 100%）計算。<b>純數據展示，唔構成任何交易建議。</b>';
+}
+</script>
+<script>
+/* 右欄：新加坡自動抓取 — keyword 搜尋 → 莊家賠率表 → 撳行自動填表 */
+(function(){
+"use strict";
+var SG_BASE="https://odds-portal-scraper-sg.onrender.com";
+var OP_CHIPS=["Arsenal","Djokovic","Lakers","Real Madrid","Liverpool"];
+var SPORT_ZH={football:"⚽ 足球",tennis:"🎾 網球",basketball:"🏀 籃球",hockey:"🏒 冰球","ice-hockey":"🏒 冰球",volleyball:"🏐 排球",handball:"🤾 手球","american-football":"🏈 美式足球",baseball:"⚾ 棒球",cricket:"🏏 板球",darts:"🎯 飛鏢",snooker:"🎱 桌球","table-tennis":"🏓 乒乓球",badminton:"🏸 羽毛球",boxing:"🥊 拳擊",mma:"🥋 綜合格鬥",esports:"🎮 電競",futsal:"⚽ 室內足球","rugby-union":"🏉 欖球","rugby-league":"🏉 欖球"};
+function sportBadge(s){ return s?(SPORT_ZH[s]||esc(s)):""; }
+function opStatus(msg,cls){ var s=$("op-status"); s.textContent=msg||""; s.className="status"+(cls?" "+cls:""); }
+$("op-chips").innerHTML=OP_CHIPS.map(function(c){ return '<button data-c="'+esc(c)+'">'+esc(c)+'</button>'; }).join("");
+$("op-chips").addEventListener("click",function(e){
+  var b=e.target.closest("button"); if(!b) return;
+  $("op-q").value=b.getAttribute("data-c"); opSearch();
+});
+$("op-q").addEventListener("keydown",function(e){ if(e.key==="Enter") opSearch(); });
+$("op-go").onclick=opSearch;
+var OP_RESULTS=[];
+function opFetch(path){
+  return fetch(SG_BASE+path).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(d){
+      if(r.status===429){ var be=new Error("busy"); be.busy=true; throw be; }
+      if(!r.ok) throw new Error((d&&(d.detail||d.error))||("HTTP "+r.status));
+      if(d&&d.detail) throw new Error(d.detail);
+      return d;
+    });
+  });
+}
+function isNetErr(e){ return e instanceof TypeError||/failed to fetch|networkerror/i.test(String((e&&e.message)||e)); }
+/* 自動重試：部免費機一次只跑一個 job；上一輪斷線後 server 嗰邊重跑緊，
+   呢邊會撞 429 → 等 15 秒再試（最多 8 次，約 2 分鐘，夠 cover 一輪 90 秒搜尋）。
+   純斷線就 10 秒後再試（最多 3 次）。 */
+function withRetry(fn){
+  var attempt=0;
+  function go(){
+    attempt++;
+    return fn(attempt).catch(function(e){
+      if(e&&e.busy&&attempt<8){
+        opStatus("⏳ 部機忙緊（上一輪重跑緊），15 秒後自動重試（第 "+attempt+" 次）…");
+        return new Promise(function(res){ setTimeout(function(){ res(go()); },15000); });
+      }
+      if(isNetErr(e)&&attempt<4){
+        opStatus("⚠️ 連線斷咗，10 秒後自動重試（第 "+attempt+" 次）…");
+        return new Promise(function(res){ setTimeout(function(){ res(go()); },10000); });
+      }
+      throw e;
+    });
+  }
+  return go();
+}
+function opSearch(){
+  var q=($("op-q").value||"").trim();
+  if(!q){ opStatus("請輸入關鍵字。","err"); return; }
+  var btn=$("op-go"); btn.disabled=true; btn.textContent="搜尋緊…";
+  opStatus("⏳ 搜尋緊（免費機約需 1 分鐘，部機瞓緊會再耐啲）…");
+  $("op-results").innerHTML=""; $("op-detail").innerHTML="";
+  withRetry(function(){
+    return opFetch("/api/search?q="+encodeURIComponent(q)).then(function(d){
+      var rs=d.results||[];
+      OP_RESULTS=rs;
+      if(!rs.length){ opStatus("冇搵到相關賽事，試下其他關鍵字。","err"); return; }
+      opStatus("搵到 "+rs.length+" 場 — 撳入去載入莊家賠率","ok");
+      $("op-results").innerHTML=rs.map(function(r,i){
+        var meta=[r.sport?sportBadge(r.sport):"",r.league?esc(r.league):"",r.time?esc(r.time):""].filter(Boolean).join(" ・ ");
+        return '<div class="mkt" data-i="'+i+'"><div class="t">'+esc(r.title||"未命名賽事")+'</div>'+
+          (meta?'<div class="meta"><span>'+meta+'</span></div>':"")+'</div>';
+      }).join("");
+    });
+  }).catch(function(e){
+    opStatus("❌ 搜尋失敗："+((e&&e.busy)?"部機忙緊，請等一陣再撳搜尋。":(e&&e.message)||e),"err");
+  }).then(function(){ btn.disabled=false; btn.textContent="搜尋"; });
+}
+$("op-results").addEventListener("click",function(e){
+  var c=e.target.closest(".mkt"); if(!c) return;
+  var cards=$("op-results").querySelectorAll(".mkt");
+  for(var k=0;k<cards.length;k++) cards[k].classList.toggle("sel",cards[k]===c);
+  opLoad(+c.getAttribute("data-i"));
+});
+function num1(x){ var n=parseFloat(x); return (isFinite(n)&&n>1)?n:0; }
+function num2(x){ var n=num1(x); return n>0?n.toFixed(2):"—"; }
+function devig(b1,bx,b2){ var p1=1/b1,px=1/bx,p2=1/b2,s=p1+px+p2;
+  return [["主勝",p1/s*100],["和局",px/s*100],["客勝",p2/s*100]]; }
+function devig2(b1,b2){ var p1=1/b1,p2=1/b2,s=p1+p2;
+  return [["主隊",p1/s*100],["客隊",p2/s*100]]; }
+function opLoad(i){
+  var m=OP_RESULTS[i]; if(!m||!m.url) return;
+  opStatus("⏳ 抓緊「"+m.title+"」嘅莊家賠率（約半分鐘）…");
+  $("op-detail").innerHTML="";
+  withRetry(function(){
+    return opFetch("/api/odds?url="+encodeURIComponent(m.url));
+  }).then(function(d){
+    var s=d.snapshot||{};
+    var books=(s.books||[]).map(function(b){ return [b[0],num1(b[1]),num1(b[2]),num1(b[3])]; })
+      .filter(function(b){ return b[1]>0||b[2]>0||b[3]>0; });
+    if(!books.length){ opStatus("呢場暫時冇莊家賠率數據。","err"); return; }
+    var hasX=books.some(function(b){ return b[2]>0; }); /* 網球/籃球等冇和局盤 */
+    var b1=0,bx=0,b2=0,j;
+    for(j=0;j<books.length;j++){ var b=books[j]; if(b[1]>b1)b1=b[1]; if(b[2]>bx)bx=b[2]; if(b[3]>b2)b2=b[3]; }
+    var cons=hasX?((b1>0&&bx>0&&b2>0)?devig(b1,bx,b2):[]):((b1>0&&b2>0)?devig2(b1,b2):[]);
+    opStatus("✅ "+books.length+" 間莊家（新加坡視角）— 撳一行自動填入下面對比","ok");
+    var rows=books.map(function(bk,k){
+      var tds='<td class="'+(bk[1]===b1&&b1>0?"best-cell":"")+'">'+num2(bk[1])+'</td>'+
+        (hasX?'<td class="'+(bk[2]===bx&&bx>0?"best-cell":"")+'">'+num2(bk[2])+'</td>':"")+
+        '<td class="'+(bk[3]===b2&&b2>0?"best-cell":"")+'">'+num2(bk[3])+'</td>';
+      return '<tr data-bk="'+k+'"><td class="bk">'+esc(bk[0])+'</td>'+tds+'</tr>';
+    }).join("");
+    var consTxt=cons.map(function(c){ return esc(c[0])+" "+c[1].toFixed(1)+"%"; }).join("・");
+    var headCols=hasX?'<th class="num">主勝 1</th><th class="num">和局 X</th><th class="num">客勝 2</th>'
+                     :'<th class="num">主隊 1</th><th class="num">客隊 2</th>';
+    $("op-detail").innerHTML=
+      '<div class="detail"><div class="dbar op-back"><button class="btn ghost" id="op-back">← 返回搜尋結果</button></div>'+
+      '<h3>'+esc(m.title||"")+'</h3>'+((s.date||s.time)?'<div class="dmeta">'+esc([s.date,s.time].filter(Boolean).join(" "))+'</div>':"")+
+      (consTxt?'<div class="dmeta">去水綜合概率（最佳賠率計）：'+consTxt+'</div>':"")+
+      '<div class="odds-wrap"><table class="odds op-books"><tr><th>莊家</th>'+headCols+'</tr>'+rows+'</table></div>'+
+      '<div class="bookie-count">撳任何一行 → 自動填主隊／客隊名＋'+(hasX?"三":"兩")+'個賠率去下面對比表。綠色係該欄最高賠率。</div></div>';
+    $("op-back").onclick=function(){ $("op-detail").innerHTML=""; opStatus("搵到 "+OP_RESULTS.length+" 場 — 撳入去載入莊家賠率","ok"); };
+    var tb=$("op-detail").querySelector("table.op-books");
+    tb.addEventListener("click",function(e){
+      var tr=e.target.closest("tr[data-bk]"); if(!tr) return;
+      var bk=books[+tr.getAttribute("data-bk")]; if(!bk) return;
+      var trs=tb.querySelectorAll("tr");
+      for(var k=0;k<trs.length;k++) trs[k].classList.toggle("selrow",trs[k]===tr);
+      if(s.home) $("bk-home").value=s.home;
+      if(s.away) $("bk-away").value=s.away;
+      $("bk-o1").value=(bk[1]>1?bk[1].toFixed(2):"");
+      $("bk-ox").value=(hasX&&bk[2]>1?bk[2].toFixed(2):"");
+      $("bk-o2").value=(bk[3]>1?bk[3].toFixed(2):"");
+      renderCompare._key=""; renderCompare();
+      opStatus("✅ 已填入 "+bk[0]+" 嘅賠率（"+num2(bk[1])+(hasX?"／"+num2(bk[2]):"")+"／"+num2(bk[3])+"），拉落下面睇對比","ok");
+      document.getElementById("compare-sec").scrollIntoView({behavior:"smooth",block:"start"});
+    });
+  }).catch(function(e){
+    opStatus("❌ 載入賠率失敗："+((e&&e.busy)?"部機忙緊，請等一陣再撳。":(e&&e.message)||e),"err");
+  });
+}
+})();
+</script>
+<div id="tradeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto" onclick="if(event.target===this)closeTradeModal()">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;max-width:780px;width:100%;position:relative">
+    <button class="btn ghost" style="position:absolute;top:12px;right:12px" onclick="closeTradeModal()">關閉</button>
+    <div id="tradeModalBody"></div>
+  </div>
+</div>
+</body>
+</html>
