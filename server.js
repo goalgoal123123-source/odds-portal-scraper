@@ -229,7 +229,7 @@ app.get('/api/odds', withJob(async (req, res) => {
 async function proxyFetch(res, upstreamUrl) {
   try {
     const r = await fetch(upstreamUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; cn-proxy/1.0)', 'Accept': 'application/json' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept': 'application/json' },
     });
     const body = await r.text();
     res.status(r.status);
@@ -258,8 +258,7 @@ app.get('/proxy/od/*', (req, res) => {
   const qs = new URLSearchParams(req.query);
   if (!qs.has('language')) qs.set('language', 'en');
   const qstr = qs.toString();
-  // 經現有 Cloudflare Worker 轉發（直接打 oddspedia.com 會撞 CF 驗證）
-  proxyFetch(res, `https://oddspedia-proxy.goalgoal123123.workers.dev/${path}${qstr ? '?' + qstr : ''}`);
+  proxyFetch(res, `https://oddspedia.com/api/v1/${path}${qstr ? '?' + qstr : ''}`);
 });
 
 app.get('/', (req, res) => {
