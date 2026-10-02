@@ -258,7 +258,8 @@ app.get('/proxy/od/*', (req, res) => {
   const qs = new URLSearchParams(req.query);
   if (!qs.has('language')) qs.set('language', 'en');
   const qstr = qs.toString();
-  proxyFetch(res, `https://oddspedia.com/api/v1/${path}${qstr ? '?' + qstr : ''}`);
+  // 經現有 Cloudflare Worker 轉發（直接打 oddspedia.com 會撞 CF 驗證）
+  proxyFetch(res, `https://oddspedia-proxy.goalgoal123123.workers.dev/${path}${qstr ? '?' + qstr : ''}`);
 });
 
 app.get('/', (req, res) => {
