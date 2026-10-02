@@ -219,6 +219,48 @@ app.get('/api/odds', withJob(async (req, res) => {
   }
 }));
 
+/**
+ * China-accessible proxy endpoints.
+ * The site's browser code calls these instead of the blocked upstreams directly.
+ *   GET /proxy/pm-data/*  -> https://data-api.polymarket.com/*
+ *   GET /proxy/pm-gamma/* -> https://gamma-api.polymarket.com/*
+ *   GET /proxy/od/*       -> https://oddspedia.com/api/v1/* (auto-adds language=en)
+ */
+async function proxyFetch(res, upstreamUrl) {
+  try {
+    const r = await fetch(upstreamUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; cn-proxy/1.0)', 'Accept': 'application/json' },
+    });
+    const body = await r.text();
+    res.status(r.status);
+    const ct = r.headers.get('content-type');
+    if (ct) res.setHeader('content-type', ct);
+    res.send(body);
+  } catch (e) {
+    res.status(502).json({ error: 'proxy upstream failed', message: String(e.message || e) });
+  }
+}
+
+app.get('/proxy/pm-data/*', (req, res) => {
+  const path = req.params[0] || '';
+  const qs = new URLSearchParams(req.query).toString();
+  proxyFetch(res, `https://data-api.polymarket.com/${path}${qs ? '?' + qs : ''}`);
+});
+
+app.get('/proxy/pm-gamma/*', (req, res) => {
+  const path = req.params[0] || '';
+  const qs = new URLSearchParams(req.query).toString();
+  proxyFetch(res, `https://gamma-api.polymarket.com/${path}${qs ? '?' + qs : ''}`);
+});
+
+app.get('/proxy/od/*', (req, res) => {
+  const path = req.params[0] || '';
+  const qs = new URLSearchParams(req.query);
+  if (!qs.has('language')) qs.set('language', 'en');
+  const qstr = qs.toString();
+  proxyFetch(res, `https://oddspedia.com/api/v1/${path}${qstr ? '?' + qstr : ''}`);
+});
+
 app.get('/', (req, res) => {
   res.json({
     service: 'odds-portal-scraper',
@@ -230,6 +272,9 @@ app.get('/', (req, res) => {
       'GET /api/historic?league=<league>&start=<yyyy>&end=<yyyy>&format=<format>',
       'GET /api/search?q=<keyword>&leagues=<csv>&format=<format>',
       'GET /api/odds?url=<match url>&format=<format>',
+      'GET /proxy/pm-data/*  (China proxy for data-api.polymarket.com)',
+      'GET /proxy/pm-gamma/* (China proxy for gamma-api.polymarket.com)',
+      'GET /proxy/od/*      (China proxy for oddspedia.com/api/v1)',
     ],
   });
 });
