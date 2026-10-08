@@ -133,8 +133,7 @@ async function doPwFetch(pg, url, method, headers, bodyB64) {
   }, { url, method, headers, bodyB64 });
 }
 
-export async function pwFetch(url, options = {}) {
-  const method = (options.method || 'GET').toUpperCase();
+export async function pwFetch(url, options = {}) {  const method = (options.method || 'GET').toUpperCase();
   const headers = options.headers || {};
   const bodyB64 = options.body ? Buffer.from(options.body).toString('base64') : null;
 
@@ -157,4 +156,12 @@ export async function pwFetch(url, options = {}) {
     headers: result.headers,
     body: Buffer.from(result.bodyB64, 'base64'),
   };
+}
+
+// Server 啟動時預熱（唔 block）：等第一個用戶 request 嚟嗰陣個 page 已經 ready，
+// 唔使喺 request 入面等成個 warm-up（會超過 Cloudflare edge timeout）
+export function warmupPw() {
+  ensurePage()
+    .then(() => console.log('[pw-fwd] startup warmup done'))
+    .catch((e) => console.log('[pw-fwd] startup warmup failed: ' + String(e.message || e).slice(0, 200)));
 }

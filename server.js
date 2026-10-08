@@ -24,6 +24,7 @@ import { getUrlFrom } from './lib/utils/leagues.js';
 import logger from './lib/logger.js';
 import { mountFwd, attachFwdUpgrade } from './fwd-proxy.js';
 import { startClearanceLoop } from './cf-clearance.js';
+import { warmupPw } from './pw-forwarder.js';
 
 const app = express();
 app.use(express.json());
@@ -289,3 +290,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`odds-portal-scraper API listening on port ${PORT}`);
 });
 attachFwdUpgrade(server);
+
+// Playwright in-page forwarder 預熱：延遲 90 秒等 cf-clearance loop 嗰個 browser
+// 閂咗先開始（免費版 RAM 有限，唔好兩個 Chromium 同時跑），之後用戶 request 唔使等 warm-up
+setTimeout(() => { warmupPw(); }, 90 * 1000);
