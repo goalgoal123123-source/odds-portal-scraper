@@ -27,17 +27,21 @@ function looksChallenged(status, text) {
          /Attention Required.*Cloudflare/i.test(text);
 }
 
-// 用 in-page fetch 打 root，睇下係咪真係過到驗證
+// 用 in-page fetch 打 root，睇下係咪真係過到驗證（15 秒 timeout，唔可以 hang）
 async function fetchOk(pg) {
   try {
     const r = await pg.evaluate(async (url) => {
-      const resp = await fetch(url, { method: 'GET' });
-      const txt = await resp.text();
-      return { status: resp.status, head: txt.slice(0, 4000) };
+      try {
+        const resp = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(15000) });
+        const txt = await resp.text();
+        return { status: resp.status, head: txt.slice(0, 4000) };
+      } catch (e) {
+        return { status: -1, head: 'FETCH_TIMEOUT:' + String(e && e.name || e).slice(0, 50) };
+      }
     }, CP_ROOT);
     if (r.status === 403 || r.status === 503) return false;
     if (looksChallenged(r.status, r.head)) return false;
-    return true;
+    return r.status === 200;
   } catch (e) {
     return false;
   }
@@ -79,17 +83,24 @@ async function ensurePage() {
       });
       page = await ctx.newPage();
       await page.goto(CP_ROOT, { waitUntil: 'domcontentloaded', timeout: 45000 });
-      // 等驗證通過（最多 60 秒）：title + 真實 fetch 雙重確認
+      // 等驗證通過：title 好 + 真實 fetch 雙重確認。
+      // 如果 title 好但 fetch 唔過，reload 一次拎新 clearance（唔係齋等）。
       let passed = false;
-      for (let i = 0; i < 12; i++) {
-        await page.waitForTimeout(5000);
+      for (let attempt = 0; attempt < 2 && !passed; attempt++) {
+        for (let i = 0; i < 8; i++) {
+          await page.waitForTimeout(5000);
+          try {
+            const t = await page.title();
+            if (t && t.indexOf('Just a moment') === -1 && t.indexOf('CoinPoker') !== -1) break;
+          } catch (e) { break; }
+        }
         try {
           const t = await page.title();
-          if (t && t.indexOf('Just a moment') === -1 && t.indexOf('CoinPoker') !== -1) {
-            if (await fetchOk(page)) { passed = true; break; }
-            console.log('[pw-fwd] warm-up: title ok but fetch challenged, waiting…');
-          }
-        } catch (e) { break; }
+          if (t && t.indexOf('Just a moment') !== -1) continue; // 仲 challenge 緊，下個 attempt
+          if (await fetchOk(page)) { passed = true; break; }
+          console.log('[pw-fwd] warm-up: title ok but fetch failed, reloading (attempt ' + (attempt + 1) + ')');
+          await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+        } catch (e) { /* 下個 attempt */ }
       }
       if (!passed) {
         console.log('[pw-fwd] warm-up FAILED (challenge not passed)');
@@ -108,14 +119,19 @@ async function ensurePage() {
 
 async function doPwFetch(pg, url, method, headers, bodyB64) {
   return await pg.evaluate(async ({ url, method, headers, bodyB64 }) => {
-    const init = { method, headers };
+    const init = { method, headers, signal: AbortSignal.timeout(30000) };
     if (bodyB64 && method !== 'GET' && method !== 'HEAD') {
       const bin = atob(bodyB64);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       init.body = bytes;
     }
-    const resp = await fetch(url, init);
+    let resp;
+    try {
+      resp = await fetch(url, init);
+    } catch (e) {
+      return { status: -1, headers: {}, bodyB64: '', head: 'FETCH_TIMEOUT:' + String(e && e.name || e).slice(0, 50) };
+    }
     const buf = await resp.arrayBuffer();
     const h = {};
     resp.headers.forEach((v, k) => { h[k] = v; });
@@ -133,7 +149,8 @@ async function doPwFetch(pg, url, method, headers, bodyB64) {
   }, { url, method, headers, bodyB64 });
 }
 
-export async function pwFetch(url, options = {}) {  const method = (options.method || 'GET').toUpperCase();
+export async function pwFetch(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
   const headers = options.headers || {};
   const bodyB64 = options.body ? Buffer.from(options.body).toString('base64') : null;
 
@@ -149,6 +166,10 @@ export async function pwFetch(url, options = {}) {  const method = (options.meth
     if ((result.status === 403 || result.status === 503) && looksChallenged(result.status, result.head)) {
       console.log('[pw-fwd] retry still challenged, giving up');
     }
+  }
+
+  if (result.status === -1) {
+    throw new Error('in-page fetch timeout: ' + (result.head || '').slice(0, 80));
   }
 
   return {
