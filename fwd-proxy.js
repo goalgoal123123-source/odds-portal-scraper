@@ -9,6 +9,7 @@
  */
 import https from 'https';
 import tls from 'tls';
+import { getClearance } from './cf-clearance.js';
 
 const FWD_TOKEN = process.env.CP_FWD_TOKEN || '';
 const FWD_HOST_RE = /^([a-z0-9-]+\.)*coinpoker\.com$/i;
@@ -50,11 +51,19 @@ export function mountFwd(app) {
     const outHeaders = {};
     for (const [k, v] of Object.entries(req.headers)) {
       const lk = k.toLowerCase();
-      if (FWD_HOP_HEADERS.has(lk) || lk === 'x-fwd-token' || lk === 'content-length' || lk === 'host') continue;
+      if (FWD_HOP_HEADERS.has(lk) || lk === 'x-fwd-token' || lk === 'content-length' || lk === 'host' || lk === 'cookie') continue;
       outHeaders[k] = v;
     }
     // Host 必須係目標域名：轉發錯誤嘅 Host 會令 CoinPoker 嗰邊 TLS handshake 失敗
     outHeaders['host'] = t.host;
+    // 加上 cf_clearance cookie 過 Cloudflare 機械人驗證（Playwright 定時 refresh）
+    // 同用戶本身嘅 cookie 合併，唔好覆蓋
+    const clearance = getClearance();
+    const userCookie = req.headers['cookie'];
+    const parts = [];
+    if (userCookie) parts.push(userCookie);
+    if (clearance) parts.push('cf_clearance=' + clearance);
+    if (parts.length) outHeaders['cookie'] = parts.join('; ');
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
