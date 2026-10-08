@@ -23,6 +23,7 @@ import { leaguesUrlsMap, oddsFormatMap } from './lib/constants.js';
 import { getUrlFrom } from './lib/utils/leagues.js';
 import logger from './lib/logger.js';
 import { mountFwd, attachFwdUpgrade } from './fwd-proxy.js';
+import { startClearanceLoop } from './cf-clearance.js';
 
 const app = express();
 app.use(express.json());
@@ -282,6 +283,7 @@ app.get('/', (req, res) => {
 
 
 mountFwd(app);
+startClearanceLoop(); // CoinPoker cf_clearance 定時 refresh（經 Playwright）
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`odds-portal-scraper API listening on port ${PORT}`);
