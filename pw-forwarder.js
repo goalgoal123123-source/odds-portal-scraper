@@ -13,9 +13,12 @@
 import { chromium } from 'playwright';
 
 let browser = null;
+let pwCtx = null;
 let page = null;
 let initPromise = null;
 let lastWarm = 0;
+let failCount = 0;
+let circuitOpenUntil = 0;
 
 const CP_ROOT = 'https://play.coinpoker.com/';
 
@@ -50,10 +53,23 @@ async function fetchOk(pg) {
 function dropPage() {
   if (page) page.close().catch(() => {});
   page = null;
+  if (pwCtx) pwCtx.close().catch(() => {});
+  pwCtx = null;
   lastWarm = 0;
 }
 
+// 連 browser 成個掉咗（慳 RAM，唔留 leak）
+function dropBrowser() {
+  dropPage();
+  if (browser) browser.close().catch(() => {});
+  browser = null;
+}
+
 async function ensurePage() {
+  // Circuit breaker：連續失敗 3 次就停 5 分鐘，唔好無限燒 RAM／CPU
+  if (Date.now() < circuitOpenUntil) {
+    throw new Error('circuit open (recent warmup failures)');
+  }
   if (page && Date.now() - lastWarm < 10 * 60 * 1000) {
     // 快速檢查 page 仲生唔生、係咪已過驗證
     try {
@@ -76,12 +92,12 @@ async function ensurePage() {
         });
       }
       dropPage();
-      const ctx = await browser.newContext({
+      pwCtx = await browser.newContext({
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         viewport: { width: 1366, height: 768 },
         locale: 'en-US',
       });
-      page = await ctx.newPage();
+      page = await pwCtx.newPage();
       await page.goto(CP_ROOT, { waitUntil: 'domcontentloaded', timeout: 45000 });
       // 等驗證通過：title 好 + 真實 fetch 雙重確認。
       // 如果 title 好但 fetch 唔過，reload 一次拎新 clearance（唔係齋等）。
@@ -104,9 +120,15 @@ async function ensurePage() {
       }
       if (!passed) {
         console.log('[pw-fwd] warm-up FAILED (challenge not passed)');
-        dropPage();
+        dropBrowser(); // 成個 browser 掉咗，唔留 leak
+        failCount++;
+        if (failCount >= 3) {
+          circuitOpenUntil = Date.now() + 5 * 60 * 1000;
+          console.log('[pw-fwd] circuit OPEN for 5 min after 3 failures');
+        }
         throw new Error('challenge not passed');
       }
+      failCount = 0;
       lastWarm = Date.now();
       console.log('[pw-fwd] page ready, challenge passed (fetch verified)');
       return page;
@@ -157,10 +179,10 @@ export async function pwFetch(url, options = {}) {
   let pg = await ensurePage();
   let result = await doPwFetch(pg, url, method, headers, bodyB64);
 
-  // 撞到 Cloudflare challenge：作廢個 page，重新 warm-up，再試一次
+  // 撞到 Cloudflare challenge：作廢成個 browser，重新 warm-up，再試一次
   if ((result.status === 403 || result.status === 503) && looksChallenged(result.status, result.head)) {
     console.log('[pw-fwd] fetch challenged (status ' + result.status + '), re-warming and retrying once');
-    dropPage();
+    dropBrowser();
     pg = await ensurePage();
     result = await doPwFetch(pg, url, method, headers, bodyB64);
     if ((result.status === 403 || result.status === 503) && looksChallenged(result.status, result.head)) {
