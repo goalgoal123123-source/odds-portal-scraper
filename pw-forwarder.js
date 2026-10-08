@@ -11,28 +11,51 @@ let initPromise = null;
 let lastWarm = 0;
 
 async function ensurePage() {
-  if (page && Date.now() - lastWarm < 10 * 60 * 1000) return page;
+  if (page && Date.now() - lastWarm < 10 * 60 * 1000) {
+    // 快速檢查 page 仲生唔生、係咪已過驗證
+    try {
+      const t = await page.title();
+      if (t && t.indexOf('Just a moment') === -1) return page;
+    } catch (e) { /* page 死咗，重新起 */ }
+  }
   if (initPromise) return initPromise;
   initPromise = (async () => {
-    if (!browser) {
-      browser = await chromium.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'],
+    try {
+      if (!browser) {
+        browser = await chromium.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'],
+        });
+      }
+      if (page) await page.close().catch(() => {});
+      const ctx = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        viewport: { width: 1366, height: 768 },
+        locale: 'en-US',
       });
+      page = await ctx.newPage();
+      await page.goto('https://play.coinpoker.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      // 等驗證通過（最多 40 秒），唔過就唔 cache
+      let passed = false;
+      for (let i = 0; i < 8; i++) {
+        await page.waitForTimeout(5000);
+        try {
+          const t = await page.title();
+          if (t && t.indexOf('Just a moment') === -1 && t.indexOf('CoinPoker') !== -1) { passed = true; break; }
+        } catch (e) { break; }
+      }
+      if (!passed) {
+        console.log('[pw-fwd] warm-up FAILED (challenge not passed)');
+        await page.close().catch(() => {});
+        page = null;
+        throw new Error('challenge not passed');
+      }
+      lastWarm = Date.now();
+      console.log('[pw-fwd] page ready, challenge passed');
+      return page;
+    } finally {
+      initPromise = null;
     }
-    if (page) await page.close().catch(() => {});
-    const ctx = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1366, height: 768 },
-      locale: 'en-US',
-    });
-    page = await ctx.newPage();
-    await page.goto('https://play.coinpoker.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(15000);
-    lastWarm = Date.now();
-    console.log('[pw-fwd] page ready');
-    initPromise = null;
-    return page;
   })();
   return initPromise;
 }
