@@ -108,9 +108,16 @@ export function attachFwdUpgrade(server) {
       let raw = 'GET ' + path + ' HTTP/1.1\r\nHost: ' + host + '\r\n';
       for (const [k, v] of Object.entries(req.headers)) {
         const lk = k.toLowerCase();
-        if (lk === 'host' || lk === 'connection' || lk === 'content-length' || lk === 'x-fwd-token') continue;
+        if (lk === 'host' || lk === 'connection' || lk === 'content-length' || lk === 'x-fwd-token' || lk === 'cookie') continue;
         raw += k + ': ' + (Array.isArray(v) ? v.join(', ') : v) + '\r\n';
       }
+      // WebSocket 也要帶 cf_clearance 過驗證（同用戶 cookie 合併）
+      const clearance = getClearance();
+      const userCk = req.headers['cookie'];
+      const ckParts = [];
+      if (userCk) ckParts.push(userCk);
+      if (clearance) ckParts.push('cf_clearance=' + clearance);
+      if (ckParts.length) raw += 'Cookie: ' + ckParts.join('; ') + '\r\n';
       raw += 'Connection: Upgrade\r\nUpgrade: websocket\r\n\r\n';
       upstream.write(raw);
       if (head && head.length) upstream.write(head);
