@@ -10,6 +10,7 @@
 import https from 'https';
 import tls from 'tls';
 import { getClearance } from './cf-clearance.js';
+import { pwFetch } from './pw-forwarder.js';
 
 const FWD_TOKEN = process.env.CP_FWD_TOKEN || '';
 const FWD_HOST_RE = /^([a-z0-9-]+\.)*coinpoker\.com$/i;
@@ -66,24 +67,30 @@ export function mountFwd(app) {
     if (parts.length) outHeaders['cookie'] = parts.join('; ');
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
-    req.on('end', () => {
+    req.on('end', async () => {
       const body = chunks.length ? Buffer.concat(chunks) : null;
       if (body) outHeaders['content-length'] = String(body.length);
-      const up = https.request(t.target, { method: req.method, headers: outHeaders }, (upRes) => {
+      try {
+        // 用 Playwright 真瀏覽器轉發（過 Cloudflare 機械人驗證）
+        const pwRes = await pwFetch(t.target, {
+          method: req.method,
+          headers: outHeaders,
+          body: body,
+        });
         const rh = {};
-        for (const [k, v] of Object.entries(upRes.headers)) {
+        for (const [k, v] of Object.entries(pwRes.headers)) {
           if (FWD_HOP_HEADERS.has(k.toLowerCase())) continue;
           rh[k] = v;
         }
-        res.writeHead(upRes.statusCode, rh);
-        upRes.pipe(res);
-      });
-      up.on('error', () => {
+        delete rh['content-encoding'];
+        delete rh['transfer-encoding'];
+        res.writeHead(pwRes.status, rh);
+        res.end(pwRes.body);
+      } catch (e) {
+        console.log('[fwd] pwFetch error: ' + String(e.message || e).slice(0, 200));
         if (!res.headersSent) res.status(502).send('upstream error');
-        else { try { res.end(); } catch (e) {} }
-      });
-      if (body) up.write(body);
-      up.end();
+        else { try { res.end(); } catch (ee) {} }
+      }
     });
     req.on('error', () => { try { res.end(); } catch (e) {} });
   });
