@@ -31,6 +31,18 @@ function fwdAuthOk(req) {
 }
 
 export function mountFwd(app) {
+  // 臨時測試：Playwright 能否通過 CoinPoker 驗證
+  app.get('/fwd-clearance-test', async (req, res) => {
+    if (!fwdAuthOk(req)) return res.status(403).send('forbidden');
+    try {
+      const { testClearance } = await import('./cf-clearance-test.js');
+      const r = await testClearance();
+      res.json(r);
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e).slice(0, 300) });
+    }
+  });
+
   app.use('/fwd', (req, res) => {
     if (!fwdAuthOk(req)) return res.status(403).send('forbidden');
     const t = fwdParse(req.url);
