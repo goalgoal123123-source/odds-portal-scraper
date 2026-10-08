@@ -22,6 +22,7 @@ import { scrapeMatch } from './lib/scraping-v2/scrapeMatch.js';
 import { leaguesUrlsMap, oddsFormatMap } from './lib/constants.js';
 import { getUrlFrom } from './lib/utils/leagues.js';
 import logger from './lib/logger.js';
+import { mountFwd, attachFwdUpgrade } from './fwd-proxy.js';
 
 const app = express();
 app.use(express.json());
@@ -280,6 +281,9 @@ app.get('/', (req, res) => {
 });
 
 
-app.listen(PORT, '0.0.0.0', () => {
+mountFwd(app);
+
+const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`odds-portal-scraper API listening on port ${PORT}`);
 });
+attachFwdUpgrade(server);
