@@ -21,6 +21,15 @@ export async function testClearance() {
     // Wait for challenge to potentially clear (up to 20s)
     await page.waitForTimeout(20000);
     result.title = await page.title();
+    result.url = page.url();
+    try {
+      const shot = await page.screenshot({ type: 'jpeg', quality: 60 });
+      result.screenshotB64 = shot.toString('base64');
+    } catch (e) { result.screenshotB64 = null; }
+    try {
+      const html = await page.content();
+      result.htmlHead = html.slice(0, 3000);
+    } catch (e) { result.htmlHead = null; }
     const cookies = await ctx.cookies();
     result.cookies = cookies.map(c => ({ name: c.name, len: c.value.length }));
     result.ok = cookies.some(c => c.name === 'cf_clearance');
