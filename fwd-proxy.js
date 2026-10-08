@@ -38,9 +38,11 @@ export function mountFwd(app) {
     const outHeaders = {};
     for (const [k, v] of Object.entries(req.headers)) {
       const lk = k.toLowerCase();
-      if (FWD_HOP_HEADERS.has(lk) || lk === 'x-fwd-token' || lk === 'content-length') continue;
+      if (FWD_HOP_HEADERS.has(lk) || lk === 'x-fwd-token' || lk === 'content-length' || lk === 'host') continue;
       outHeaders[k] = v;
     }
+    // Host 必須係目標域名：轉發錯誤嘅 Host 會令 CoinPoker 嗰邊 TLS handshake 失敗
+    outHeaders['host'] = t.host;
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
