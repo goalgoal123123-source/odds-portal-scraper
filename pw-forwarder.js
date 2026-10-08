@@ -1,64 +1,73 @@
 /**
- * Playwright-based forwarder for CoinPoker.
- * Uses a persistent real Chromium browser context to forward requests.
- * This passes Cloudflare's bot challenge because it's a REAL browser
- * (correct TLS fingerprint, JS execution, cookies).
+ * Playwright in-page fetch forwarder for CoinPoker.
+ * Uses page.evaluate(fetch()) INSIDE a real Chromium page on play.coinpoker.com.
+ * This has the correct TLS fingerprint, executes JS, and sends cookies automatically.
  */
 import { chromium } from 'playwright';
 
 let browser = null;
-let context = null;
+let page = null;
 let initPromise = null;
+let lastWarm = 0;
 
-async function ensureContext() {
-  if (context) return context;
+async function ensurePage() {
+  if (page && Date.now() - lastWarm < 10 * 60 * 1000) return page;
   if (initPromise) return initPromise;
   initPromise = (async () => {
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'],
-    });
-    context = await browser.newContext({
+    if (!browser) {
+      browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'],
+      });
+    }
+    if (page) await page.close().catch(() => {});
+    const ctx = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       viewport: { width: 1366, height: 768 },
       locale: 'en-US',
     });
-    // Pre-warm: visit CoinPoker to pass challenge and get cookies
-    const page = await context.newPage();
-    try {
-      await page.goto('https://play.coinpoker.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
-      await page.waitForTimeout(15000);
-      console.log('[pw-fwd] pre-warm done, title=' + await page.title().catch(() => '?'));
-    } catch (e) {
-      console.log('[pw-fwd] pre-warm error: ' + String(e.message || e).slice(0, 150));
-    } finally {
-      await page.close();
-    }
-    return context;
+    page = await ctx.newPage();
+    await page.goto('https://play.coinpoker.com/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(15000);
+    lastWarm = Date.now();
+    console.log('[pw-fwd] page ready');
+    initPromise = null;
+    return page;
   })();
   return initPromise;
 }
 
 export async function pwFetch(url, options = {}) {
-  const ctx = await ensureContext();
-  const req = ctx.request;
+  const pg = await ensurePage();
   const method = (options.method || 'GET').toUpperCase();
   const headers = options.headers || {};
-  const data = options.body || undefined;
+  const bodyB64 = options.body ? Buffer.from(options.body).toString('base64') : null;
 
-  let resp;
-  const fetchOpts = { headers, data, timeout: 45000 };
-  if (method === 'GET') resp = await req.get(url, fetchOpts);
-  else if (method === 'POST') resp = await req.post(url, fetchOpts);
-  else if (method === 'PUT') resp = await req.put(url, fetchOpts);
-  else if (method === 'DELETE') resp = await req.delete(url, fetchOpts);
-  else if (method === 'PATCH') resp = await req.patch(url, fetchOpts);
-  else if (method === 'HEAD') resp = await req.head(url, fetchOpts);
-  else resp = await req.fetch(url, { ...fetchOpts, method });
+  const result = await pg.evaluate(async ({ url, method, headers, bodyB64 }) => {
+    const init = { method, headers };
+    if (bodyB64 && method !== 'GET' && method !== 'HEAD') {
+      const bin = atob(bodyB64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      init.body = bytes;
+    }
+    const resp = await fetch(url, init);
+    const buf = await resp.arrayBuffer();
+    const h = {};
+    resp.headers.forEach((v, k) => { h[k] = v; });
+    // Convert to base64 for efficient transfer
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    const CHUNK = 8192;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return { status: resp.status, headers: h, bodyB64: btoa(bin) };
+  }, { url, method, headers, bodyB64 });
 
-  const body = await resp.body();
-  const headersObj = {};
-  const h = resp.headers();
-  for (const k of Object.keys(h)) headersObj[k] = h[k];
-  return { status: resp.status(), headers: headersObj, body };
+  return {
+    status: result.status,
+    headers: result.headers,
+    body: Buffer.from(result.bodyB64, 'base64'),
+  };
 }
